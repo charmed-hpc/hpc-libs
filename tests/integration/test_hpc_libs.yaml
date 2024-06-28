@@ -30,13 +30,13 @@ acts:
       - name: "Install dependencies in a virtual environment"
         run: |
           export DEBIAN_FRONTEND=noninteractive
-          sudo apt update
-          sudo apt install -y python3-venv python3-yaml
+          apt update
+          apt install -y python3-venv python3-yaml
           python3 -m venv venv --system-site-packages
           venv/bin/python3 -m pip install -r dev-requirements.txt
       - name: "Run integration tests with pytest"
         run: |
-          sudo venv/bin/python3 -m pytest -v \
+          venv/bin/python3 -m pytest -v \
             -s \
             --tb native \
             --log-cli-level=INFO \
