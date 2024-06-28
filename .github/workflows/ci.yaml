@@ -1,7 +1,7 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-name: cephfs-server-proxy tests
+name: hpc-libs tests
 on:
   workflow_call:
   pull_request:
