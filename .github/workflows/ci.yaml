@@ -38,6 +38,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Install dependencies
+        run: python3 -m pip install tox
       - name: Set up LXD
         uses: canonical/setup-lxd@v0.1.1
         with:
