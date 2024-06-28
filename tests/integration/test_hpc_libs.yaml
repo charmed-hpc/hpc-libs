@@ -1,0 +1,43 @@
+# Copyright 2024 Canonical Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: "HPC lib tests"
+provider:
+  lxd:
+acts:
+  test-slurm-ops:
+    name: "Test the slurm_ops library"
+    run-on: jammy
+    input:
+      - host-path: lib
+        path: lib
+      - host-path: dev-requirements.txt
+        path: dev-requirements.txt
+      - host-path: tests/integration/slurm_ops
+        path: slurm_ops
+    scenes:
+      - name: "Install dependencies in a virtual environment"
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt update
+          sudo apt install -y python3-venv python3-yaml
+          python3 -m venv venv --system-site-packages
+          venv/bin/python3 -m pip install -r dev-requirements.txt
+      - name: "Run integration tests with pytest"
+        run: |
+          sudo venv/bin/python3 -m pytest -v \
+            -s \
+            --tb native \
+            --log-cli-level=INFO \
+            slurm_ops
