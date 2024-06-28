@@ -1,4 +1,2 @@
-juju ~= 3.3
 pytest ~= 7.2
-pytest-operator ~= 0.34
 pytest-order ~= 1.1
