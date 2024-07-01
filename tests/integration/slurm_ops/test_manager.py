@@ -17,7 +17,7 @@ def slurm_manager() -> SlurmManager:
 def test_install(slurm_manager: SlurmManager) -> None:
     """Install Slurm using the manager."""
     slurm_manager.install()
-    slurm_manager.start()
+    slurm_manager.enable()
     slurm_manager.set_munge_key(slurm_manager.generate_munge_key())
 
     with open("/var/snap/slurm/common/etc/munge/munge.key", "rb") as f:

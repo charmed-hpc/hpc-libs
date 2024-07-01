@@ -136,8 +136,8 @@ class SlurmManager:
         # TODO: Pin slurm to the stable channel
         _snap("install", "slurm", "--channel", "latest/candidate", "--classic")
 
-    def start(self):
-        """Start and enables the managed slurm service and the munged service."""
+    def enable(self):
+        """Start and enable the managed slurm service and the munged service."""
         _snap("start", "--enable", "slurm.munged")
         _snap("start", "--enable", f"slurm.{self._service.value}")
 
