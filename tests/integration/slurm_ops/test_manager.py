@@ -42,10 +42,11 @@ def test_rotate_key(slurm_manager: SlurmManager) -> None:
 def test_slurm_config(slurm_manager: SlurmManager) -> None:
     """Test that the slurm config can be changed."""
     slurm_manager.set_config("cluster-name", "test-cluster")
+    slurm_manager.set_configs({"max-tasks-per-node": "30000", "inactive-limit": "60000"})
 
-    value = slurm_manager.get_config("cluster-name")
-
-    assert value == "test-cluster"
+    assert slurm_manager.get_config("cluster-name") == "test-cluster"
+    assert slurm_manager.get_config("max-tasks-per-node") == "30000"
+    assert slurm_manager.get_config("inactive-limit") == "60000"
 
     with open("/var/snap/slurm/common/etc/slurm/slurm.conf", "r") as f:
         output = f.read()
@@ -57,6 +58,10 @@ def test_slurm_config(slurm_manager: SlurmManager) -> None:
         key, value = entry
         if key == "ClusterName":
             assert value == "test-cluster"
+        elif key == "MaxTasksPerNode":
+            assert value == "30000"
+        elif key == "InactiveLimit":
+            assert value == "60000"
 
 
 @pytest.mark.order(4)

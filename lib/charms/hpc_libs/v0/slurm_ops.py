@@ -57,6 +57,7 @@ import logging
 import os
 import subprocess
 import tempfile
+from collections.abc import Mapping
 
 import yaml
 
@@ -164,6 +165,18 @@ class SlurmManager:
         the specific managed service. (the slurmctld service uses the slurm parent key)
         """
         _set_config(f"{self._service.config_name}.{key}={value}")
+
+    def set_configs(self, configs: Mapping[str, str]):
+        """Set many snap configurations for the managed slurm service.
+
+        See the configuration section from the [Slurm readme](https://github.com/charmed-hpc/slurm-snap#configuration)
+        for a list of all the available configurations.
+
+        Note that this will only allow configuring the settings that are exclusive to
+        the specific managed service. (the slurmctld service uses the slurm parent key)
+        """
+        configs = [f"{self._service.config_name}.{key}={value}" for key, value in configs.items()]
+        _set_config(*configs)
 
     def get_config(self, key: str) -> str:
         """Get a snap config for the managed slurm service.

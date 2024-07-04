@@ -91,6 +91,28 @@ class SlurmOpsBase:
         args = subcmd.call_args[0][0]
         self.assertEqual(args, ["snap", "set", "slurm", f"{self.config_name}.key=value"])
 
+    def test_set_configs(self, subcmd, *_) -> None:
+        """Test that the manager calls the correct set_config command with multiple configs."""
+        self.manager.set_configs(
+            {
+                "key1": "value1",
+                "key2": "value2",
+                "key3": "value3",
+            }
+        )
+        args = subcmd.call_args[0][0]
+        self.assertEqual(
+            args,
+            [
+                "snap",
+                "set",
+                "slurm",
+                f"{self.config_name}.key1=value1",
+                f"{self.config_name}.key2=value2",
+                f"{self.config_name}.key3=value3",
+            ],
+        )
+
     def test_get_config(self, subcmd, *_) -> None:
         """Test that the manager calls the correct get_config command."""
         subcmd.return_value = b"value"
