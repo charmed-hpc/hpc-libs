@@ -91,6 +91,15 @@ _acronym = re.compile(r"(?<=[A-Z])(?=[A-Z][a-z])")
 _kebabize = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 
 
+class SlurmOpsError(Exception):
+    """Exception raised when a slurm operation failed."""
+
+    @property
+    def message(self) -> str:
+        """Return message passed as argument to exception."""
+        return self.args[0]
+
+
 def format_key(key: str) -> str:
     """Format Slurm configuration keys from SlurmCASe into kebab case.
 
@@ -129,7 +138,7 @@ def _call(cmd: str, *args: str, stdin: Optional[str] = None) -> str:
     """Call a command with logging.
 
     Raises:
-        subprocess.CalledProcessError: Raised if the command fails.
+        SlurmOpsError: Raised if the command fails.
     """
     cmd = [cmd, *args]
     _logger.debug(f"Executing command {cmd}")
@@ -138,7 +147,7 @@ def _call(cmd: str, *args: str, stdin: Optional[str] = None) -> str:
     except subprocess.CalledProcessError as e:
         _logger.error(f"`{' '.join(cmd)}` failed")
         _logger.error(f"stderr: {e.stderr.decode()}")
-        raise
+        raise SlurmOpsError(f"command {cmd[0]} failed. Reason:\n{e.stderr.decode()}")
 
 
 def _snap(*args) -> str:
