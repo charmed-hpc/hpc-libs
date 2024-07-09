@@ -7,15 +7,16 @@ import base64
 import pytest
 
 import lib.charms.hpc_libs.v0.slurm_ops as slurm
+from lib.charms.hpc_libs.v0.slurm_ops import ServiceType, SlurmManagerBase
 
 
 @pytest.fixture
-def slurmctld() -> slurm.SlurmctldManager:
-    return slurm.SlurmctldManager()
+def slurmctld() -> SlurmManagerBase:
+    return SlurmManagerBase(ServiceType.SLURMCTLD)
 
 
 @pytest.mark.order(1)
-def test_install(slurmctld: slurm.SlurmctldManager) -> None:
+def test_install(slurmctld: SlurmManagerBase) -> None:
     """Install Slurm using the manager."""
     slurm.install()
     slurmctld.enable()
@@ -28,7 +29,7 @@ def test_install(slurmctld: slurm.SlurmctldManager) -> None:
 
 
 @pytest.mark.order(2)
-def test_rotate_key(slurmctld: slurm.SlurmctldManager) -> None:
+def test_rotate_key(slurmctld: SlurmManagerBase) -> None:
     """Test that the munge key can be rotated."""
     old_key = slurmctld.munge.get_key()
     slurmctld.munge.generate_key()
@@ -37,7 +38,7 @@ def test_rotate_key(slurmctld: slurm.SlurmctldManager) -> None:
 
 
 @pytest.mark.order(3)
-def test_slurm_config(slurmctld: slurm.SlurmctldManager) -> None:
+def test_slurm_config(slurmctld: SlurmManagerBase) -> None:
     """Test that the slurm config can be changed."""
     slurmctld.config.set({"cluster-name": "test-cluster"})
     value = slurmctld.config.get("cluster-name")
