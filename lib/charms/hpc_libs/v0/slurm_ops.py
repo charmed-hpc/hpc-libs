@@ -15,18 +15,25 @@
 
 """Abstractions for managing Slurm operations via snap.
 
-This library contains high-level interfaces for controlling the operations
-of Slurm and its composing services. It also provides various utilities for
-installing and managing the Slurm snap installation on the host.
+This library contains the `SlurmManagerBase` and `ServiceType` class
+which provide high-level interfaces for managing Slurm within charmed operators.
 
-### Example usage
+### Example Usage
 
-The `slurm_ops` charm library provides management interfaces for Slurm services, which
-helps the charm determine correct service to enable, or the correct settings
-key to mutate on the snap.
+#### Managing a Slurm service
 
-```python
+The `SlurmManagerBase` constructor receives a `ServiceType` enum. The enum instructs
+the inheriting Slurm service manager how to manage its corresponding Slurm service on the host.
+
+```python3
 import charms.hpc_libs.v0.slurm_ops as slurm
+from charms.hpc_libs.v0.slurm_ops import SlurmManagerBase, ServiceType
+
+class SlurmctldManager(SlurmManagerBase):
+    # Manage `slurmctld` service on host.
+
+    def __init__(self) -> None:
+        super().__init__(ServiceType.SLURMCTLD)
 
 
 class ApplicationCharm(CharmBase):
@@ -36,7 +43,7 @@ class ApplicationCharm(CharmBase):
         super().__init__(*args, **kwargs)
 
         # Charm events defined in the NFSRequires class.
-        self._slurmctld_manager = slurm.SlurmctldManager()
+        self._slurm_manager = SlurmctldManager()
         self.framework.observe(
             self.on.install,
             self._on_install,
@@ -45,17 +52,15 @@ class ApplicationCharm(CharmBase):
     def _on_install(self, _) -> None:
         slurm.install()
         self.unit.set_workload_version(slurm.version())
-        self._slurmctld_manager.config.set({"cluster-name": "cluster"})
+        self._slurm_manager.config.set({"cluster-name": "cluster"})
 ```
 """
 
 __all__ = [
     "install",
     "version",
-    "SlurmctldManager",
-    "SlurmdManager",
-    "SlurmdbdManager",
-    "SlurmrestdManager",
+    "ServiceType",
+    "SlurmManagerBase",
 ]
 
 import json
@@ -67,8 +72,6 @@ from typing import Any, Optional
 
 import yaml
 
-_logger = logging.getLogger(__name__)
-
 # The unique Charmhub library identifier, never change it
 LIBID = "541fd767f90b40539cf7cd6e7db8fabf"
 
@@ -79,13 +82,15 @@ LIBAPI = 0
 # to 0 if you are raising the major API version
 LIBPATCH = 1
 
-
+# Charm library dependencies to fetch during `charmcraft pack`.
 PYDEPS = ["pyyaml>=6.0.1"]
+
+_logger = logging.getLogger(__name__)
 
 
 def install() -> None:
     """Install Slurm."""
-    # TODO: Pin slurm to the stable channel
+    # FIXME: Pin slurm to the stable channel
     _snap("install", "slurm", "--channel", "latest/candidate", "--classic")
 
 
@@ -231,38 +236,10 @@ class MungeManager(ServiceManager):
         _mungectl("key", "generate")
 
 
-class SlurmBaseManager(ServiceManager):
+class SlurmManagerBase(ServiceManager):
     """Base manager for Slurm services."""
 
     def __init__(self, service: ServiceType) -> None:
         self._service = service
         self.config = ConfigurationManager(service)
         self.munge = MungeManager()
-
-
-class SlurmctldManager(SlurmBaseManager):
-    """Manage `slurmctld` service operations."""
-
-    def __init__(self) -> None:
-        super().__init__(ServiceType.SLURMCTLD)
-
-
-class SlurmdManager(SlurmBaseManager):
-    """Manage `slurmd` service operations."""
-
-    def __init__(self) -> None:
-        super().__init__(ServiceType.SLURMD)
-
-
-class SlurmdbdManager(SlurmBaseManager):
-    """Manage `slurmdbd` service operations."""
-
-    def __init__(self) -> None:
-        super().__init__(ServiceType.SLURMDBD)
-
-
-class SlurmrestdManager(SlurmBaseManager):
-    """Manage `slurmrestd` service operations."""
-
-    def __init__(self) -> None:
-        super().__init__(ServiceType.SLURMRESTD)

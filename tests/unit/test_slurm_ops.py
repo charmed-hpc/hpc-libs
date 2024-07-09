@@ -9,6 +9,7 @@ import subprocess
 from unittest.mock import patch
 
 import charms.hpc_libs.v0.slurm_ops as slurm
+from charms.hpc_libs.v0.slurm_ops import ServiceType, SlurmManagerBase
 from pyfakefs.fake_filesystem_unittest import TestCase
 
 MUNGEKEY = b"1234567890"
@@ -161,10 +162,10 @@ class SlurmOpsBase:
 
 
 parameters = [
-    (slurm.SlurmctldManager(), "slurm"),
-    (slurm.SlurmdManager(), "slurmd"),
-    (slurm.SlurmdbdManager(), "slurmdbd"),
-    (slurm.SlurmrestdManager(), "slurmrestd"),
+    (SlurmManagerBase(ServiceType.SLURMCTLD), "slurm"),
+    (SlurmManagerBase(ServiceType.SLURMD), "slurmd"),
+    (SlurmManagerBase(ServiceType.SLURMDBD), "slurmdbd"),
+    (SlurmManagerBase(ServiceType.SLURMRESTD), "slurmrestd"),
 ]
 
 for manager, config_name in parameters:
