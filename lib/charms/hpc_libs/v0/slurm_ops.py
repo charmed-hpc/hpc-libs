@@ -42,7 +42,6 @@ class ApplicationCharm(CharmBase):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        # Charm events defined in the NFSRequires class.
         self._slurm_manager = SlurmctldManager()
         self.framework.observe(
             self.on.install,
