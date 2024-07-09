@@ -57,6 +57,7 @@ class ApplicationCharm(CharmBase):
 """
 
 __all__ = [
+    "format_key",
     "install",
     "version",
     "ServiceType",
@@ -65,6 +66,7 @@ __all__ = [
 
 import json
 import logging
+import re
 import subprocess
 from collections.abc import Mapping
 from enum import Enum
@@ -86,6 +88,29 @@ LIBPATCH = 1
 PYDEPS = ["pyyaml>=6.0.1"]
 
 _logger = logging.getLogger(__name__)
+_acronym = re.compile(r"(?<=[A-Z])(?=[A-Z][a-z])")
+_kebabize = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+
+
+def format_key(key: str) -> str:
+    """Format Slurm configuration keys from SlurmCASe into kebab case.
+
+    Args:
+        key: Slurm configuration key to convert to kebab case.
+
+    Notes:
+       Slurm configuration syntax does not follow proper PascalCasing
+       format, so we cannot put keys directly through a kebab case converter
+       to get the desired format. Some additional processing is needed for
+       certain keys before the key can properly kebabized.
+
+       For example, without additional preprocessing, the key `CPUs` will
+       become `cp-us` if put through a kebabizer with being preformatted to `Cpus`.
+    """
+    if "CPUs" in key:
+        key = key.replace("CPUs", "Cpus")
+    key = _acronym.sub(r"-", key)
+    return _kebabize.sub(r"-", key).lower()
 
 
 def install() -> None:
