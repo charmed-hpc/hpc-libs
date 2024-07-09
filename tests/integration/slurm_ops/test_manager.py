@@ -2,49 +2,45 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import base64
 
 import pytest
 
-from lib.charms.hpc_libs.v0.slurm_ops import Service, SlurmManager
+import lib.charms.hpc_libs.v0.slurm_ops as slurm
 
 
 @pytest.fixture
-def slurm_manager() -> SlurmManager:
-    return SlurmManager(Service.SLURMCTLD)
+def slurmctld() -> slurm.SlurmctldManager:
+    return slurm.SlurmctldManager()
 
 
 @pytest.mark.order(1)
-def test_install(slurm_manager: SlurmManager) -> None:
+def test_install(slurmctld: slurm.SlurmctldManager) -> None:
     """Install Slurm using the manager."""
-    slurm_manager.install()
-    slurm_manager.enable()
-    slurm_manager.set_munge_key(slurm_manager.generate_munge_key())
+    slurm.install()
+    slurmctld.enable()
+    slurmctld.munge.generate_key()
 
     with open("/var/snap/slurm/common/etc/munge/munge.key", "rb") as f:
-        key: bytes = f.read()
+        key: str = base64.b64encode(f.read()).decode()
 
-    assert key == slurm_manager.get_munge_key()
+    assert key == slurmctld.munge.get_key()
 
 
 @pytest.mark.order(2)
-def test_rotate_key(slurm_manager: SlurmManager) -> None:
+def test_rotate_key(slurmctld: slurm.SlurmctldManager) -> None:
     """Test that the munge key can be rotated."""
-    old_key = slurm_manager.get_munge_key()
-
-    slurm_manager.set_munge_key(slurm_manager.generate_munge_key())
-
-    new_key = slurm_manager.get_munge_key()
-
+    old_key = slurmctld.munge.get_key()
+    slurmctld.munge.generate_key()
+    new_key = slurmctld.munge.get_key()
     assert old_key != new_key
 
 
 @pytest.mark.order(3)
-def test_slurm_config(slurm_manager: SlurmManager) -> None:
+def test_slurm_config(slurmctld: slurm.SlurmctldManager) -> None:
     """Test that the slurm config can be changed."""
-    slurm_manager.set_config("cluster-name", "test-cluster")
-
-    value = slurm_manager.get_config("cluster-name")
-
+    slurmctld.config.set({"cluster-name": "test-cluster"})
+    value = slurmctld.config.get("cluster-name")
     assert value == "test-cluster"
 
     with open("/var/snap/slurm/common/etc/slurm/slurm.conf", "r") as f:
@@ -60,9 +56,9 @@ def test_slurm_config(slurm_manager: SlurmManager) -> None:
 
 
 @pytest.mark.order(4)
-def test_version(slurm_manager: SlurmManager) -> None:
+def test_version() -> None:
     """Test that the Slurm manager can report its version."""
-    version = slurm_manager.version()
+    version = slurm.version()
 
     # We are interested in knowing that this does not return a falsy value (`None`, `''`, `[]`, etc.)
     assert version
