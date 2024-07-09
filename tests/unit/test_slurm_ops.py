@@ -44,6 +44,11 @@ class TestSlurmOps(TestCase):
     def setUp(self) -> None:
         self.setUpPyfakefs()
 
+    def test_format_key(self, _) -> None:
+        """Test that `kebabize` properly formats slurm keys."""
+        self.assertEqual(slurm.format_key("CPUs"), "cpus")
+        self.assertEqual(slurm.format_key("AccountingStorageHost"), "accounting-storage-host")
+
     def test_install(self, subcmd) -> None:
         """Test that `slurm_ops` calls the correct install command."""
         slurm.install()
