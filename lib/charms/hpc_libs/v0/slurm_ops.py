@@ -13,22 +13,21 @@
 # limitations under the License.
 
 
-"""Library to manage the Slurm snap.
+"""Abstractions for managing Slurm operations via snap.
 
-This library contains the `SlurmManager` class, which offers interfaces to use and manage
-the Slurm snap inside charms.
+This library contains high-level interfaces for controlling the operations
+of Slurm and its composing services. It also provides various utilities for
+installing and managing the Slurm snap installation on the host.
 
-### General usage
+### Example usage
 
-For starters, the `SlurmManager` constructor receives a `Service` enum as a parameter, which
-helps the manager determine things like the correct service to enable, or the correct settings
-key to mutate.
+The `slurm_ops` charm library provides management interfaces for Slurm services, which
+helps the charm determine correct service to enable, or the correct settings
+key to mutate on the snap.
 
-```
-from charms.hpc_libs.v0.slurm_ops import (
-    Service,
-    SlurmManager,
-)
+```python
+import charms.hpc_libs.v0.slurm_ops as slurm
+
 
 class ApplicationCharm(CharmBase):
     # Application charm that needs to use the Slurm snap.
@@ -37,26 +36,34 @@ class ApplicationCharm(CharmBase):
         super().__init__(*args, **kwargs)
 
         # Charm events defined in the NFSRequires class.
-        self._slurm_manager = SlurmManager(Service.SLURMCTLD)
+        self._slurmctld_manager = slurm.SlurmctldManager()
         self.framework.observe(
             self.on.install,
             self._on_install,
         )
 
     def _on_install(self, _) -> None:
-        self._slurm_manager.install()
-        self.unit.set_workload_version(self._slurm_manager.version())
-        self._slurm_manager.set_config("cluster-name", "cluster")
+        slurm.install()
+        self.unit.set_workload_version(slurm.version())
+        self._slurmctld_manager.config.set({"cluster-name": "cluster"})
 ```
 """
 
-import base64
-import enum
-import functools
+__all__ = [
+    "install",
+    "version",
+    "SlurmctldManager",
+    "SlurmdManager",
+    "SlurmdbdManager",
+    "SlurmrestdManager",
+]
+
+import json
 import logging
-import os
 import subprocess
-import tempfile
+from collections.abc import Mapping
+from enum import Enum
+from typing import Any, Optional
 
 import yaml
 
@@ -76,7 +83,20 @@ LIBPATCH = 1
 PYDEPS = ["pyyaml>=6.0.1"]
 
 
-def _call(cmd: str, *args: [str]) -> bytes:
+def install() -> None:
+    """Install Slurm."""
+    # TODO: Pin slurm to the stable channel
+    _snap("install", "slurm", "--channel", "latest/candidate", "--classic")
+
+
+def version() -> str:
+    """Get the current version of Slurm installed on the system."""
+    info = yaml.safe_load(_snap("info", "slurm"))
+    ver: str = info["installed"]
+    return ver.split(maxsplit=1)[0]
+
+
+def _call(cmd: str, *args: str, stdin: Optional[str] = None) -> str:
     """Call a command with logging.
 
     Raises:
@@ -85,7 +105,7 @@ def _call(cmd: str, *args: [str]) -> bytes:
     cmd = [cmd, *args]
     _logger.debug(f"Executing command {cmd}")
     try:
-        return subprocess.check_output(cmd, stderr=subprocess.PIPE, text=False)
+        return subprocess.check_output(cmd, input=stdin, stderr=subprocess.PIPE, text=True).strip()
     except subprocess.CalledProcessError as e:
         _logger.error(f"`{' '.join(cmd)}` failed")
         _logger.error(f"stderr: {e.stderr.decode()}")
@@ -98,16 +118,26 @@ def _snap(*args) -> str:
     Raises:
         subprocess.CalledProcessError: Raised if snap command fails.
     """
-    return _call("snap", *args).decode()
+    return _call("snap", *args)
 
 
-_get_config = functools.partial(_snap, "get", "slurm")
-_set_config = functools.partial(_snap, "set", "slurm")
+def _mungectl(*args: str, stdin: Optional[str] = None) -> str:
+    """Control munge via `slurm.mungectl ...`.
+
+    Args:
+        *args: Arguments to pass to `mungectl`.
+        stdin: Input to pass to `mungectl` via stdin.
+
+    Raises:
+        subprocess.CalledProcessError: Raised if `mungectl` command fails.
+    """
+    return _call("slurm.mungectl", *args, stdin=stdin)
 
 
-class Service(enum.Enum):
-    """Type of Slurm service that will be managed by `SlurmManager`."""
+class ServiceType(Enum):
+    """Type of Slurm service to manage."""
 
+    MUNGED = "munged"
     SLURMD = "slurmd"
     SLURMCTLD = "slurmctld"
     SLURMDBD = "slurmdbd"
@@ -116,94 +146,123 @@ class Service(enum.Enum):
     @property
     def config_name(self) -> str:
         """Configuration name on the slurm snap for this service type."""
-        if self is Service.SLURMCTLD:
+        if self is ServiceType.SLURMCTLD:
             return "slurm"
+        if self is ServiceType.MUNGED:
+            return "munge"
+
         return self.value
 
 
-class SlurmManager:
-    """Slurm snap manager.
+class ServiceManager:
+    """Control a Slurm service."""
 
-    This class offers methods to manage the Slurm snap for a certain service type.
-    The list of available services is specified by the `Service` enum.
-    """
-
-    def __init__(self, service: Service):
-        self._service = service
-
-    def install(self):
-        """Install the slurm snap in this system."""
-        # TODO: Pin slurm to the stable channel
-        _snap("install", "slurm", "--channel", "latest/candidate", "--classic")
-
-    def enable(self):
-        """Start and enable the managed slurm service and the munged service."""
-        _snap("start", "--enable", "slurm.munged")
+    def enable(self) -> None:
+        """Enable service."""
         _snap("start", "--enable", f"slurm.{self._service.value}")
 
-    def restart(self):
-        """Restart the managed slurm service."""
-        _snap("restart", f"slurm.{self._service.value}")
-
-    def restart_munged(self):
-        """Restart the munged service."""
-        _snap("restart", "slurm.munged")
-
-    def disable(self):
-        """Disable the managed slurm service and the munged service."""
-        _snap("stop", "--disable", "slurm.munged")
+    def disable(self) -> None:
+        """Disable service."""
         _snap("stop", "--disable", f"slurm.{self._service.value}")
 
-    def set_config(self, key: str, value: str):
-        """Set a snap config for the managed slurm service.
+    def restart(self) -> None:
+        """Restart service."""
+        _snap("restart", f"slurm.{self._service.value}")
 
-        See the configuration section from the [Slurm readme](https://github.com/charmed-hpc/slurm-snap#configuration)
-        for a list of all the available configurations.
 
-        Note that this will only allow configuring the settings that are exclusive to
-        the specific managed service. (the slurmctld service uses the slurm parent key)
+class ConfigurationManager:
+    """Control configuration of a Slurm component."""
+
+    def __init__(self, service: ServiceType) -> None:
+        self._service = service
+
+    def get_options(self, *keys: str) -> Mapping[str, Any]:
+        """Get given configurations values for Slurm component."""
+        configs = {}
+        for key in keys:
+            config = self.get(key)
+            target = key.rsplit(".", maxsplit=1)[-1]
+            configs[target] = config
+
+        return configs
+
+    def get(self, key: str) -> Any:
+        """Get specific configuration value for Slurm component."""
+        key = f"{self._service.config_name}.{key}"
+        config = json.loads(_snap("get", "-d", "slurm", key))
+        return config[key]
+
+    def set(self, config: Mapping[str, Any]) -> None:
+        """Set configuration for Slurm component."""
+        args = [f"{self._service.config_name}.{k}={json.dumps(v)}" for k, v in config.items()]
+        _snap("set", "slurm", *args)
+
+    def unset(self, *keys) -> None:
+        """Unset configuration for Slurm component."""
+        args = [f"{self._service.config_name}.{k}!" for k in keys]
+        _snap("unset", "slurm", *args)
+
+
+class MungeManager(ServiceManager):
+    """Manage `munged` service operations."""
+
+    def __init__(self) -> None:
+        self._service = ServiceType.MUNGED
+        self.config = ConfigurationManager(ServiceType.MUNGED)
+
+    def get_key(self) -> str:
+        """Get the current munge key.
+
+        Returns:
+            The current munge key as a base64-encoded string.
         """
-        _set_config(f"{self._service.config_name}.{key}={value}")
+        return _mungectl("key", "get")
 
-    def get_config(self, key: str) -> str:
-        """Get a snap config for the managed slurm service.
+    def set_key(self, key: str) -> None:
+        """Set a new munge key.
 
-        See the configuration section from the [Slurm readme](https://github.com/charmed-hpc/slurm-snap#configuration)
-        for a list of all the available configurations.
-
-        Note that this will only allow fetching the settings that are exclusive to
-        the specific managed service. (the slurmctld service uses the slurm parent key)
+        Args:
+            key: A new, base64-encoded munge key.
         """
-        # Snap returns the config value with an additional newline at the end.
-        return _get_config(f"{self._service.config_name}.{key}").strip()
+        _mungectl("key", "set", stdin=key)
 
-    def generate_munge_key(self) -> bytes:
-        """Generate a new cryptographically secure munged key."""
-        handle, path = tempfile.mkstemp()
-        try:
-            _call("mungekey", "-f", "-k", path)
-            os.close(handle)
-            with open(path, "rb") as f:
-                return f.read()
-        finally:
-            os.remove(path)
+    def generate_key(self) -> None:
+        """Generate a new, cryptographically secure munge key."""
+        _mungectl("key", "generate")
 
-    def set_munge_key(self, key: bytes):
-        """Set the current munged key."""
-        # TODO: use `slurm.setmungekey` when implemented
-        # subprocess.run(["slurm.setmungekey"], stdin=key)
-        key = base64.b64encode(key).decode()
-        _set_config(f"munge.key={key}")
 
-    def get_munge_key(self) -> bytes:
-        """Get the current munged key."""
-        # TODO: use `slurm.setmungekey` when implemented
-        # key = subprocess.run(["slurm.getmungekey"])
-        key = _get_config("munge.key")
-        return base64.b64decode(key)
+class SlurmBaseManager(ServiceManager):
+    """Base manager for Slurm services."""
 
-    def version(self) -> str:
-        """Get the installed Slurm version of the snap."""
-        info = yaml.safe_load(_snap("info", "slurm"))
-        version: str = info["installed"]
-        return version.split(maxsplit=1)[0]
+    def __init__(self, service: ServiceType) -> None:
+        self._service = service
+        self.config = ConfigurationManager(service)
+        self.munge = MungeManager()
+
+
+class SlurmctldManager(SlurmBaseManager):
+    """Manage `slurmctld` service operations."""
+
+    def __init__(self) -> None:
+        super().__init__(ServiceType.SLURMCTLD)
+
+
+class SlurmdManager(SlurmBaseManager):
+    """Manage `slurmd` service operations."""
+
+    def __init__(self) -> None:
+        super().__init__(ServiceType.SLURMD)
+
+
+class SlurmdbdManager(SlurmBaseManager):
+    """Manage `slurmdbd` service operations."""
+
+    def __init__(self) -> None:
+        super().__init__(ServiceType.SLURMDBD)
+
+
+class SlurmrestdManager(SlurmBaseManager):
+    """Manage `slurmrestd` service operations."""
+
+    def __init__(self) -> None:
+        super().__init__(ServiceType.SLURMRESTD)
