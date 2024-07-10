@@ -26,6 +26,8 @@ acts:
         path: dev-requirements.txt
       - host-path: tests/integration/slurm_ops
         path: slurm_ops
+      - host-path: tests/integration/is_container
+        path: is_container
     scenes:
       - name: "Install dependencies in a virtual environment"
         run: |
@@ -34,10 +36,17 @@ acts:
           apt install -y python3-venv python3-yaml
           python3 -m venv venv --system-site-packages
           venv/bin/python3 -m pip install -r dev-requirements.txt
-      - name: "Run integration tests with pytest"
+      - name: "Run `slurm_ops` integration tests"
         run: |
           venv/bin/python3 -m pytest -v \
             -s \
             --tb native \
             --log-cli-level=INFO \
             slurm_ops
+      - name: "Run `is_container` integration tests"
+        run: |
+          venv/bin/python3 -m pytest -v \
+            -s \
+            --tb native \
+            --log-cli-level=INFO \
+            is_container
