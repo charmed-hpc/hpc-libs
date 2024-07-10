@@ -211,8 +211,8 @@ class ServiceManager:
 class ConfigurationManager:
     """Control configuration of a Slurm component."""
 
-    def __init__(self, service: ServiceType) -> None:
-        self._service = service
+    def __init__(self, name: str) -> None:
+        self._name = name
 
     def get_options(self, *keys: str) -> Mapping[str, Any]:
         """Get given configurations values for Slurm component."""
@@ -224,20 +224,20 @@ class ConfigurationManager:
 
         return configs
 
-    def get(self, key: str) -> Any:
+    def get(self, key: Optional[str] = None) -> Any:
         """Get specific configuration value for Slurm component."""
-        key = f"{self._service.config_name}.{key}"
+        key = f"{self._name}.{key}" if key else self._name
         config = json.loads(_snap("get", "-d", "slurm", key))
         return config[key]
 
     def set(self, config: Mapping[str, Any]) -> None:
         """Set configuration for Slurm component."""
-        args = [f"{self._service.config_name}.{k}={json.dumps(v)}" for k, v in config.items()]
+        args = [f"{self._name}.{k}={json.dumps(v)}" for k, v in config.items()]
         _snap("set", "slurm", *args)
 
-    def unset(self, *keys) -> None:
+    def unset(self, *keys: str) -> None:
         """Unset configuration for Slurm component."""
-        args = [f"{self._service.config_name}.{k}!" for k in keys]
+        args = [f"{self._name}.{k}" for k in keys] if len(keys) > 0 else [self._name]
         _snap("unset", "slurm", *args)
 
 
@@ -245,8 +245,9 @@ class MungeManager(ServiceManager):
     """Manage `munged` service operations."""
 
     def __init__(self) -> None:
-        self._service = ServiceType.MUNGED
-        self.config = ConfigurationManager(ServiceType.MUNGED)
+        service = ServiceType.MUNGED
+        self._service = service
+        self.config = ConfigurationManager(service.config_name)
 
     def get_key(self) -> str:
         """Get the current munge key.
@@ -274,5 +275,5 @@ class SlurmManagerBase(ServiceManager):
 
     def __init__(self, service: ServiceType) -> None:
         self._service = service
-        self.config = ConfigurationManager(service)
+        self.config = ConfigurationManager(service.config_name)
         self.munge = MungeManager()
