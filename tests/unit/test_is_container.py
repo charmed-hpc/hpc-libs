@@ -7,7 +7,7 @@
 from unittest import TestCase
 from unittest.mock import patch
 
-from charms.hpc_libs.v0.is_container import DetectVirtNotFoundError, is_container
+from charms.hpc_libs.v0.is_container import UnknownVirtStateError, is_container
 
 
 @patch("charms.hpc_libs.v0.is_container.shutil.which", return_value="/usr/bin/systemd-detect-virt")
@@ -30,7 +30,7 @@ class TestIsContainer(TestCase):
 
         try:
             is_container()
-        except DetectVirtNotFoundError as e:
+        except UnknownVirtStateError as e:
             self.assertEqual(
                 e.message,
                 (

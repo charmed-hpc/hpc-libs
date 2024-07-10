@@ -54,8 +54,8 @@ LIBAPI = 0
 LIBPATCH = 1
 
 
-class DetectVirtNotFoundError(Exception):
-    """Raise error if `systemd-detect-virt` executable is not found on machine."""
+class UnknownVirtStateError(Exception):
+    """Raise error if unknown virtualization state is returned."""
 
     @property
     def message(self) -> str:
@@ -70,7 +70,7 @@ def is_container() -> bool:
         DetectVirtNotFoundError: Raised if `systemd-detect-virt` is not found on machine.
     """
     if shutil.which("systemd-detect-virt") is None:
-        raise DetectVirtNotFoundError(
+        raise UnknownVirtStateError(
             (
                 "executable `systemd-detect-virt` not found. "
                 + "cannot determine if machine is a container instance"
