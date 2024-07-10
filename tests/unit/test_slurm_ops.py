@@ -79,19 +79,19 @@ class SlurmOpsBase:
     def test_enable(self, subcmd, *_) -> None:
         """Test that the manager calls the correct enable command."""
         self.manager.enable()
-        calls = [args[0][0] for args in subcmd.call_args_list]
 
+        args = subcmd.call_args[0][0]
         self.assertEqual(
-            calls[0], ["snap", "start", "--enable", f"slurm.{self.manager._service.value}"]
+            args, ["snap", "start", "--enable", f"slurm.{self.manager._service.value}"]
         )
 
     def test_disable(self, subcmd, *_) -> None:
         """Test that the manager calls the correct disable command."""
         self.manager.disable()
-        calls = [args[0][0] for args in subcmd.call_args_list]
 
+        args = subcmd.call_args[0][0]
         self.assertEqual(
-            calls[0], ["snap", "stop", "--disable", f"slurm.{self.manager._service.value}"]
+            args, ["snap", "stop", "--disable", f"slurm.{self.manager._service.value}"]
         )
 
     def test_restart(self, subcmd, *_) -> None:
@@ -120,6 +120,14 @@ class SlurmOpsBase:
         self.assertEqual(args, ["snap", "get", "-d", "slurm", f"{self.config_name}.key"])
         self.assertEqual(value, "value")
 
+    def test_get_config_all(self, subcmd) -> None:
+        """Test that manager calls the correct `snap get ...` with no arguments given."""
+        subcmd.return_value = '{"%s": "value"}' % self.config_name
+        value = self.manager.config.get()
+        args = subcmd.call_args[0][0]
+        self.assertEqual(args, ["snap", "get", "-d", "slurm", self.config_name])
+        self.assertEqual(value, "value")
+
     def test_set_config(self, subcmd, *_) -> None:
         """Test that the manager calls the correct `snap set ...` command."""
         self.manager.config.set({"key": "value"})
@@ -130,7 +138,13 @@ class SlurmOpsBase:
         """Test that the manager calls the correct `snap unset ...` command."""
         self.manager.config.unset("key")
         args = subcmd.call_args[0][0]
-        self.assertEqual(args, ["snap", "unset", "slurm", f"{self.config_name}.key!"])
+        self.assertEqual(args, ["snap", "unset", "slurm", f"{self.config_name}.key"])
+
+    def test_unset_config_all(self, subcmd) -> None:
+        """Test the manager calls the correct `snap unset ...` with no arguments given."""
+        self.manager.config.unset()
+        args = subcmd.call_args[0][0]
+        self.assertEqual(args, ["snap", "unset", "slurm", self.config_name])
 
     def test_generate_munge_key(self, subcmd, *_) -> None:
         """Test that the manager calls the correct `mungectl` command."""
