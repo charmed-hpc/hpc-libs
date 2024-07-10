@@ -16,12 +16,8 @@
 
 Even though Juju supports using LXD containers as the backing cloud for
 deploying charmed operators, not all HPC applications work within system containers,
-and some need additional configuration. This simple charm library provides the `is_container`
-function, a simple, deterministic way to identify if the charm is deployed into
-a system container using `systemd-detect-virt`.
-
-Exit code 0 means that the charm is running with a container. A non-zero exit code
-means that the charm is not running within a container.
+and some need additional configuration. This simple charm library provides utilities
+for identifying the virtualization runtime for a charmed operator.
 
 ### Example Usage:
 
