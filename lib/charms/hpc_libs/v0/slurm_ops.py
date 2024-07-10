@@ -59,6 +59,7 @@ __all__ = [
     "format_key",
     "install",
     "version",
+    "ConfigurationManager",
     "ServiceType",
     "SlurmManagerBase",
 ]
