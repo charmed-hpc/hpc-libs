@@ -6,11 +6,11 @@
 
 import base64
 import subprocess
+from unittest import TestCase
 from unittest.mock import patch
 
 import charms.hpc_libs.v0.slurm_ops as slurm
 from charms.hpc_libs.v0.slurm_ops import ServiceType, SlurmManagerBase
-from pyfakefs.fake_filesystem_unittest import TestCase
 
 MUNGEKEY = b"1234567890"
 MUNGEKEY_BASE64 = base64.b64encode(MUNGEKEY)
@@ -40,9 +40,6 @@ installed:          23.11.7             (x1) 114MB classic
 
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.check_output")
 class TestSlurmOps(TestCase):
-
-    def setUp(self) -> None:
-        self.setUpPyfakefs()
 
     def test_format_key(self, _) -> None:
         """Test that `kebabize` properly formats slurm keys."""
@@ -74,9 +71,6 @@ class TestSlurmOps(TestCase):
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.check_output")
 class SlurmOpsBase:
     """Test the Slurm service operations managers."""
-
-    def setUp(self) -> None:
-        self.setUpPyfakefs()
 
     def test_config_name(self, *_) -> None:
         """Test that the config name is correctly set."""
