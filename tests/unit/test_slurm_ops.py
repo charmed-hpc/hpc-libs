@@ -10,7 +10,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import charms.hpc_libs.v0.slurm_ops as slurm
-from charms.hpc_libs.v0.slurm_ops import ServiceType, SlurmManagerBase
+from charms.hpc_libs.v0.slurm_ops import ServiceType, SlurmManagerBase, SlurmOpsError
 
 MUNGEKEY = b"1234567890"
 MUNGEKEY_BASE64 = base64.b64encode(MUNGEKEY)
@@ -27,14 +27,34 @@ commands:
     - slurm.command1
     - slurm.command2
 services:
+    slurm.logrotate:                 oneshot, enabled, inactive
     slurm.munged:                    simple, enabled, active
+    slurm.slurm-prometheus-exporter: simple, disabled, inactive
     slurm.slurmctld:                 simple, disabled, active
+    slurm.slurmd:                    simple, enabled, active
+    slurm.slurmdbd:                  simple, disabled, active
+    slurm.slurmrestd:                simple, disabled, active
 channels:
     latest/stable:    –
     latest/candidate: 23.11.7 2024-06-26 (460) 114MB classic
     latest/beta:      ↑
     latest/edge:      23.11.7 2024-06-26 (459) 114MB classic
 installed:          23.11.7             (x1) 114MB classic
+"""
+SLURM_INFO_NOT_INSTALLED = """
+name:      slurm
+summary:   "Slurm: A Highly Scalable Workload Manager"
+publisher: –
+store-url: https://snapcraft.io/slurm
+license:   Apache-2.0
+description: |
+    Slurm is an open source, fault-tolerant, and highly scalable cluster
+    management and job scheduling system for large and small Linux clusters.
+channels:
+    latest/stable:    –
+    latest/candidate: 23.11.7 2024-06-26 (460) 114MB classic
+    latest/beta:      ↑
+    latest/edge:      23.11.7 2024-06-26 (459) 114MB classic
 """
 
 
@@ -61,11 +81,24 @@ class TestSlurmOps(TestCase):
         self.assertEqual(args, ["snap", "info", "slurm"])
         self.assertEqual(version, "23.11.7")
 
+    def test_version_not_installed(self, subcmd) -> None:
+        """Test that `slurm_ops` throws when getting the installed version if the slurm snap is not installed."""
+        subcmd.return_value = SLURM_INFO_NOT_INSTALLED.encode()
+        with self.assertRaises(slurm.SlurmOpsError):
+            slurm.version()
+        args = subcmd.call_args[0][0]
+        self.assertEqual(args, ["snap", "info", "slurm"])
+
     def test_call_error(self, subcmd) -> None:
         """Test that `slurm_ops` propagates errors when a command fails."""
         subcmd.side_effect = subprocess.CalledProcessError(-1, cmd=[""], stderr=b"error")
         with self.assertRaises(slurm.SlurmOpsError):
             slurm.install()
+
+    def test_error_message(self, *_) -> None:
+        """Test that `SlurmOpsError` stores the correct message."""
+        message = "error message!"
+        self.assertEqual(SlurmOpsError(message).message, message)
 
 
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.check_output")
@@ -100,6 +133,19 @@ class SlurmOpsBase:
 
         args = subcmd.call_args[0][0]
         self.assertEqual(args, ["snap", "restart", f"slurm.{self.manager._service.value}"])
+
+    def test_active(self, subcmd, *_) -> None:
+        """Test that the manager can detect that a service is active."""
+        subcmd.return_value = SLURM_INFO.encode()
+        self.assertTrue(self.manager.active())
+
+    def test_active_not_installed(self, subcmd, *_) -> None:
+        """Test that the manager throws an error when calling `active` if the snap is not installed."""
+        subcmd.return_value = SLURM_INFO_NOT_INSTALLED.encode()
+        with self.assertRaises(slurm.SlurmOpsError):
+            self.manager.active()
+        args = subcmd.call_args[0][0]
+        self.assertEqual(args, ["snap", "info", "slurm"])
 
     def test_get_options(self, subcmd) -> None:
         """Test that the manager correctly collects all requested configuration options."""
