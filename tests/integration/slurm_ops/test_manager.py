@@ -19,7 +19,6 @@ def slurmctld() -> SlurmManagerBase:
 def test_install(slurmctld: SlurmManagerBase) -> None:
     """Install Slurm using the manager."""
     slurm.install()
-    slurmctld.enable()
     slurmctld.munge.generate_key()
 
     with open("/var/snap/slurm/common/etc/munge/munge.key", "rb") as f:
@@ -40,7 +39,7 @@ def test_rotate_key(slurmctld: SlurmManagerBase) -> None:
 @pytest.mark.order(3)
 def test_slurm_config(slurmctld: SlurmManagerBase) -> None:
     """Test that the slurm config can be changed."""
-    slurmctld.config.set({"cluster-name": "test-cluster"})
+    slurmctld.config.set({"slurmctld-host": "test-slurm-ops", "cluster-name": "test-cluster"})
     value = slurmctld.config.get("cluster-name")
     assert value == "test-cluster"
 
@@ -57,6 +56,13 @@ def test_slurm_config(slurmctld: SlurmManagerBase) -> None:
 
 
 @pytest.mark.order(4)
+def test_enable_service(slurmctld: SlurmManagerBase) -> None:
+    """Test that the slurmctl daemon can be enabled."""
+    slurmctld.enable()
+    assert slurmctld.active()
+
+
+@pytest.mark.order(5)
 def test_version() -> None:
     """Test that the Slurm manager can report its version."""
     version = slurm.version()

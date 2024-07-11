@@ -62,6 +62,7 @@ __all__ = [
     "ConfigurationManager",
     "ServiceType",
     "SlurmManagerBase",
+    "SlurmOpsError",
 ]
 
 import json
@@ -131,7 +132,8 @@ def install() -> None:
 def version() -> str:
     """Get the current version of Slurm installed on the system."""
     info = yaml.safe_load(_snap("info", "slurm"))
-    ver: str = info["installed"]
+    if (ver := info.get("installed")) is None:
+        raise SlurmOpsError("unable to retrive snap info. Ensure slurm is correctly installed")
     return ver.split(maxsplit=1)[0]
 
 
@@ -207,6 +209,17 @@ class ServiceManager:
     def restart(self) -> None:
         """Restart service."""
         _snap("restart", f"slurm.{self._service.value}")
+
+    def active(self) -> bool:
+        """Return True if the service is active."""
+        info = yaml.safe_load(_snap("info", "slurm"))
+        if (services := info.get("services")) is None:
+            raise SlurmOpsError("unable to retrive snap info. Ensure slurm is correctly installed")
+
+        # Assume `services` contains the service, since `ServiceManager` is not exposed as a
+        # public interface for now.
+        # We don't do `"active" in state` because the word "active" is also part of "inactive" :)
+        return "inactive" not in services[f"slurm.{self._service.value}"]
 
 
 class ConfigurationManager:
