@@ -173,6 +173,14 @@ class SlurmOpsBase:
         args = subcmd.call_args[0][0]
         self.assertEqual(args, ["snap", "set", "slurm", "munge.max-thread-count=24"])
 
+    @patch("charms.hpc_libs.v0.slurm_ops.socket.gethostname")
+    def test_hostname(self, gethostname, *_) -> None:
+        """Test that manager is able to correctly get the host name."""
+        gethostname.return_value = "machine"
+        self.assertEqual(self.manager.hostname, "machine")
+        gethostname.return_value = "machine.domain.com"
+        self.assertEqual(self.manager.hostname, "machine")
+
 
 parameters = [
     (SlurmManagerBase(ServiceType.SLURMCTLD), "slurm"),
