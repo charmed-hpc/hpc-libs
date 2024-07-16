@@ -180,6 +180,7 @@ class ServiceType(Enum):
     """Type of Slurm service to manage."""
 
     MUNGED = "munged"
+    PROMETHEUS_EXPORTER = "slurm-prometheus-exporter"
     SLURMD = "slurmd"
     SLURMCTLD = "slurmctld"
     SLURMDBD = "slurmdbd"
@@ -285,6 +286,13 @@ class MungeManager(ServiceManager):
         _mungectl("key", "generate")
 
 
+class PrometheusExporterManager(ServiceManager):
+    """Manage `slurm-prometheus-exporter` service operations."""
+
+    def __init__(self) -> None:
+        self._service = ServiceType.PROMETHEUS_EXPORTER
+
+
 class SlurmManagerBase(ServiceManager):
     """Base manager for Slurm services."""
 
@@ -292,6 +300,7 @@ class SlurmManagerBase(ServiceManager):
         self._service = service
         self.config = ConfigurationManager(service.config_name)
         self.munge = MungeManager()
+        self.exporter = PrometheusExporterManager()
 
     @property
     def hostname(self) -> str:
