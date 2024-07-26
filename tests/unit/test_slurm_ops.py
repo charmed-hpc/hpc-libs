@@ -91,7 +91,7 @@ class TestSlurmOps(TestCase):
 
     def test_call_error(self, subcmd) -> None:
         """Test that `slurm_ops` propagates errors when a command fails."""
-        subcmd.side_effect = subprocess.CalledProcessError(-1, cmd=[""], stderr=b"error")
+        subcmd.side_effect = subprocess.CalledProcessError(-1, cmd=[""], stderr="error")
         with self.assertRaises(slurm.SlurmOpsError):
             slurm.install()
 
