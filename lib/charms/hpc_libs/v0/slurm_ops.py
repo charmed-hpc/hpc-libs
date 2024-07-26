@@ -103,8 +103,8 @@ def _call(cmd: str, *args: str, stdin: Optional[str] = None) -> str:
         return subprocess.check_output(cmd, input=stdin, stderr=subprocess.PIPE, text=True).strip()
     except subprocess.CalledProcessError as e:
         _logger.error(f"`{' '.join(cmd)}` failed")
-        _logger.error(f"stderr: {e.stderr.decode()}")
-        raise SlurmOpsError(f"command {cmd[0]} failed. reason:\n{e.stderr.decode()}")
+        _logger.error(f"stderr: {e.stderr}")
+        raise SlurmOpsError(f"command {cmd[0]} failed. reason:\n{e.stderr}")
 
 
 def _snap(*args) -> str:
