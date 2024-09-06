@@ -1,2 +1,10 @@
+# lib deps
+slurmutils ~= 0.6.0
+python-dotenv ~= 1.0.1
+pyyaml >= 6.0.2
+
+# tests deps
+coverage[toml] ~= 7.6
+pyfakefs ~= 5.6.0
 pytest ~= 7.2
 pytest-order ~= 1.1
