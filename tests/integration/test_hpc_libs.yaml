@@ -16,16 +16,14 @@ name: "HPC lib tests"
 provider:
   lxd:
 acts:
-  test-slurm-ops:
-    name: "Test the slurm_ops library"
+  test-is-container:
+    name: "Test the is_container library"
     run-on: jammy
     input:
       - host-path: lib
         path: lib
       - host-path: dev-requirements.txt
         path: dev-requirements.txt
-      - host-path: tests/integration/slurm_ops
-        path: slurm_ops
       - host-path: tests/integration/is_container
         path: is_container
     scenes:
@@ -36,13 +34,6 @@ acts:
           apt install -y python3-venv python3-yaml
           python3 -m venv venv --system-site-packages
           venv/bin/python3 -m pip install -r dev-requirements.txt
-      - name: "Run `slurm_ops` integration tests"
-        run: |
-          venv/bin/python3 -m pytest -v \
-            -s \
-            --tb native \
-            --log-cli-level=INFO \
-            slurm_ops
       - name: "Run `is_container` integration tests"
         run: |
           venv/bin/python3 -m pytest -v \
@@ -50,3 +41,56 @@ acts:
             --tb native \
             --log-cli-level=INFO \
             is_container
+  test-slurm-ops-snap:
+    name: "Test the slurm_ops library (snap)"
+    run-on: jammy
+    input:
+      - host-path: lib
+        path: lib
+      - host-path: dev-requirements.txt
+        path: dev-requirements.txt
+      - host-path: tests/integration/slurm_ops
+        path: slurm_ops
+    scenes:
+      - name: "Install dependencies in a virtual environment"
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt update
+          apt install -y python3-venv python3-yaml
+          python3 -m venv venv --system-site-packages
+          venv/bin/python3 -m pip install -r dev-requirements.txt
+      - name: "Run `slurm_ops` integration tests"
+        run: |
+          PYTHONPATH=./lib \
+          venv/bin/python3 -m pytest -vv \
+            -s \
+            --tb native \
+            --log-cli-level=INFO \
+            --snap \
+            slurm_ops
+  test-slurm-ops-apt:
+    name: "Test the slurm_ops library (apt)"
+    run-on: jammy
+    input:
+      - host-path: lib
+        path: lib
+      - host-path: dev-requirements.txt
+        path: dev-requirements.txt
+      - host-path: tests/integration/slurm_ops
+        path: slurm_ops
+    scenes:
+      - name: "Install dependencies in a virtual environment"
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt update
+          apt install -y python3-venv python3-yaml
+          python3 -m venv venv --system-site-packages
+          venv/bin/python3 -m pip install -r dev-requirements.txt
+      - name: "Run `slurm_ops` integration tests"
+        run: |
+          PYTHONPATH=./lib \
+          venv/bin/python3 -m pytest -v \
+            -s \
+            --tb native \
+            --log-cli-level=INFO \
+            slurm_ops

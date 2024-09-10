@@ -69,7 +69,10 @@ channels:
 """
 
 
-@patch("charms.hpc_libs.v0.slurm_ops.subprocess.check_output")
+@patch(
+    "charms.hpc_libs.v0.slurm_ops.subprocess.run",
+    return_value=subprocess.CompletedProcess([], returncode=0),
+)
 class TestSlurmOps(TestCase):
     def test_error_message(self, *_) -> None:
         """Test that `SlurmOpsError` stores the correct message."""
@@ -77,7 +80,10 @@ class TestSlurmOps(TestCase):
         self.assertEqual(SlurmOpsError(message).message, message)
 
 
-@patch("charms.hpc_libs.v0.slurm_ops.subprocess.check_output")
+@patch(
+    "charms.hpc_libs.v0.slurm_ops.subprocess.run",
+    return_value=subprocess.CompletedProcess([], returncode=0),
+)
 class TestSnapPackageManager(FsTestCase):
     def setUp(self):
         self.manager = SnapManager()
@@ -87,13 +93,13 @@ class TestSnapPackageManager(FsTestCase):
     def test_install(self, subcmd) -> None:
         """Test that `slurm_ops` calls the correct install command."""
         self.manager.install()
-        args = subcmd.call_args[0][0]
+        args = subcmd.call_args_list[0][0][0]
         self.assertEqual(args[:3], ["snap", "install", "slurm"])
-        self.assertIn("--classic", args[3:])  # codespell:ignore
+        self.assertIn("--classic", args[3:])
 
     def test_version(self, subcmd) -> None:
         """Test that `slurm_ops` gets the correct version using the correct command."""
-        subcmd.return_value = SLURM_INFO.encode()
+        subcmd.return_value = subprocess.CompletedProcess([], returncode=0, stdout=SLURM_INFO)
         version = self.manager.version()
         args = subcmd.call_args[0][0]
         self.assertEqual(args, ["snap", "info", "slurm"])
@@ -101,7 +107,9 @@ class TestSnapPackageManager(FsTestCase):
 
     def test_version_not_installed(self, subcmd) -> None:
         """Test that `slurm_ops` throws when getting the installed version if the slurm snap is not installed."""
-        subcmd.return_value = SLURM_INFO_NOT_INSTALLED.encode()
+        subcmd.return_value = subprocess.CompletedProcess(
+            [], returncode=0, stdout=SLURM_INFO_NOT_INSTALLED
+        )
         with self.assertRaises(slurm.SlurmOpsError):
             self.manager.version()
         args = subcmd.call_args[0][0]
@@ -109,12 +117,15 @@ class TestSnapPackageManager(FsTestCase):
 
     def test_call_error(self, subcmd) -> None:
         """Test that `slurm_ops` propagates errors when a command fails."""
-        subcmd.side_effect = subprocess.CalledProcessError(-1, cmd=[""], stderr="error")
+        subcmd.return_value = subprocess.CompletedProcess([], returncode=-1, stderr="error")
         with self.assertRaises(slurm.SlurmOpsError):
             self.manager.install()
 
 
-@patch("charms.hpc_libs.v0.slurm_ops.subprocess.check_output")
+@patch(
+    "charms.hpc_libs.v0.slurm_ops.subprocess.run",
+    return_value=subprocess.CompletedProcess([], returncode=0),
+)
 class SlurmOpsBase:
     """Test the Slurm service operations managers."""
 
@@ -153,12 +164,14 @@ class SlurmOpsBase:
 
     def test_active(self, subcmd) -> None:
         """Test that the manager can detect that a service is active."""
-        subcmd.return_value = SLURM_INFO.encode()
+        subcmd.return_value = subprocess.CompletedProcess([], returncode=0, stdout=SLURM_INFO)
         self.assertTrue(self.manager.service.active())
 
     def test_active_not_installed(self, subcmd, *_) -> None:
         """Test that the manager throws an error when calling `active` if the snap is not installed."""
-        subcmd.return_value = SLURM_INFO_NOT_INSTALLED.encode()
+        subcmd.return_value = subprocess.CompletedProcess(
+            [], returncode=0, stdout=SLURM_INFO_NOT_INSTALLED
+        )
         with self.assertRaises(slurm.SlurmOpsError):
             self.manager.service.active()
         args = subcmd.call_args[0][0]
@@ -168,21 +181,21 @@ class SlurmOpsBase:
         """Test that the manager calls the correct `mungectl` command."""
         self.manager.munge.key.generate()
         args = subcmd.call_args[0][0]
-        self.assertEqual(args, ["slurm.mungectl", "key", "generate"])
+        self.assertEqual(args, ["mungectl", "key", "generate"])
 
     def test_set_munge_key(self, subcmd, *_) -> None:
         """Test that the manager sets the munge key with the correct command."""
         self.manager.munge.key.set(MUNGEKEY_BASE64)
         args = subcmd.call_args[0][0]
         # MUNGEKEY_BASE64 is piped to `stdin` to avoid exposure.
-        self.assertEqual(args, ["slurm.mungectl", "key", "set"])
+        self.assertEqual(args, ["mungectl", "key", "set"])
 
     def test_get_munge_key(self, subcmd, *_) -> None:
         """Test that the manager gets the munge key with the correct command."""
-        subcmd.return_value = MUNGEKEY_BASE64
+        subcmd.return_value = subprocess.CompletedProcess([], returncode=0, stdout=MUNGEKEY_BASE64)
         key = self.manager.munge.key.get()
         args = subcmd.call_args[0][0]
-        self.assertEqual(args, ["slurm.mungectl", "key", "get"])
+        self.assertEqual(args, ["mungectl", "key", "get"])
         self.assertEqual(key, MUNGEKEY_BASE64)
 
     def test_configure_munge(self, *_) -> None:
@@ -218,7 +231,7 @@ for manager, config_name in parameters:
     )
 
 
-@patch("charms.hpc_libs.v0.slurm_ops.subprocess.check_output")
+@patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
 class TestSlurmctldConfig(FsTestCase):
     """Test the Slurmctld service config manager."""
 
@@ -310,7 +323,7 @@ PartitionName=batch Nodes=juju-c9fc6f-2,juju-c9fc6f-3,juju-c9fc6f-4,juju-c9fc6f-
         self.assertNotIn("ReturnToService=0", configs)
 
 
-@patch("charms.hpc_libs.v0.slurm_ops.subprocess.check_output")
+@patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
 class TestSlurmdbdConfig(FsTestCase):
     """Test the Slurmdbd service config manager."""
 
@@ -378,7 +391,7 @@ StorageLoc=slurm_acct_db
         self.assertNotIn("SlurmUser=slurm", configs)
 
 
-@patch("charms.hpc_libs.v0.slurm_ops.subprocess.check_output")
+@patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
 class TestSlurmdConfig(FsTestCase):
     """Test the Slurmd service config manager."""
 

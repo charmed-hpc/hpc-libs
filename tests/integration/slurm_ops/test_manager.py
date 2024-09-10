@@ -6,25 +6,27 @@ import base64
 from pathlib import Path
 
 import pytest
-
-from lib.charms.hpc_libs.v0.slurm_ops import SlurmctldManager
+from charms.hpc_libs.v0.slurm_ops import SlurmctldManager
 
 
 @pytest.fixture
-def slurmctld() -> SlurmctldManager:
-    return SlurmctldManager(snap=True)
+def slurmctld(snap: bool) -> SlurmctldManager:
+    return SlurmctldManager(snap=snap)
 
 
 @pytest.mark.order(1)
-def test_install(slurmctld: SlurmctldManager) -> None:
+def test_install(slurmctld: SlurmctldManager, etc_path: Path) -> None:
     """Install Slurm using the manager."""
     slurmctld.install()
     slurmctld.munge.key.generate()
 
-    with open("/var/snap/slurm/common/etc/munge/munge.key", "rb") as f:
-        key: str = base64.b64encode(f.read()).decode()
+    key: bytes = (etc_path / "munge" / "munge.key").read_bytes()
+    key: str = base64.b64encode(key).decode()
 
     assert key == slurmctld.munge.key.get()
+
+
+"sz+VRDLFlr3o"
 
 
 @pytest.mark.order(2)
@@ -37,15 +39,13 @@ def test_rotate_key(slurmctld: SlurmctldManager) -> None:
 
 
 @pytest.mark.order(3)
-def test_slurm_config(slurmctld: SlurmctldManager) -> None:
+def test_slurm_config(slurmctld: SlurmctldManager, etc_path: Path) -> None:
     """Test that the slurm config can be changed."""
     with slurmctld.config() as config:
-        config.slurmctld_host = ["test-slurm-ops"]
+        config.slurmctld_host = [slurmctld.hostname]
         config.cluster_name = "test-cluster"
 
-    print(Path("/var/snap/slurm/common/etc/slurm/slurm.conf").read_text())
-
-    for line in Path("/var/snap/slurm/common/etc/slurm/slurm.conf").read_text().splitlines():
+    for line in (etc_path / "slurm" / "slurm.conf").read_text().splitlines():
         entry = line.split("=")
         if len(entry) != 2:
             continue
@@ -53,7 +53,7 @@ def test_slurm_config(slurmctld: SlurmctldManager) -> None:
         if key == "ClusterName":
             assert value == "test-cluster"
         if key == "SlurmctldHost":
-            assert value == "test-slurm-ops"
+            assert value == slurmctld.hostname
 
 
 @pytest.mark.order(4)
