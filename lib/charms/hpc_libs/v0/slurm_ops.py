@@ -12,27 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Abstractions for managing Slurm operations via snap or systemd.
 
-"""Abstractions for managing Slurm operations via snap.
-
-This library contains the `SlurmManagerBase` and `ServiceType` class
-which provide high-level interfaces for managing Slurm within charmed operators.
+This library contains manager classes that provide high-level interfaces
+for managing Slurm operations within charmed operators.
 
 ### Example Usage
 
-#### Managing a Slurm service
+#### Managing the `slurmctld` service
 
-The `SlurmManagerBase` constructor receives a `ServiceType` enum. The enum instructs
-the inheriting Slurm service manager how to manage its corresponding Slurm service on the host.
+The `SlurmctldManager` class manages the operations of the Slurm controller service.
+You can pass the boolean keyword argument `snap=True` or `snap=False` to instruct
+`SlurmctldManager` to either use the Slurm snap package or Debian package respectively.
 
 ```python3
-from charms.hpc_libs.v0.slurm_ops import SlurmManagerBase, ServiceType,
-
-class SlurmctldManager(SlurmManagerBase):
-    # Manage `slurmctld` service on host.
-
-    def __init__(self) -> None:
-        super().__init__(ServiceType.SLURMCTLD, snap=True)
+from charms.hpc_libs.v0.slurm_ops import SlurmctldManager
 
 
 class ApplicationCharm(CharmBase):
@@ -40,17 +34,14 @@ class ApplicationCharm(CharmBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-
-        self._slurm_manager = SlurmctldManager()
-        self.framework.observe(
-            self.on.install,
-            self._on_install,
-        )
+        self._slurm_manager = SlurmctldManager(snap=True)
+        self.framework.observe(self.on.install, self._on_install)
 
     def _on_install(self, _) -> None:
-        self._slurm_manager.install()
-        self.unit.set_workload_version(self._slurm_manager.version())
-        self._slurm_manager.config.set({"cluster-name": "cluster"})
+        self._slurmctld.install()
+        self.unit.set_workload_version(self._slurmctld.version())
+        with self._slurmctld.config() as config:
+            config.cluster_name = "cluster"
 ```
 """
 
@@ -261,7 +252,7 @@ class SlurmOpsManager(ABC):
 
     @abstractmethod
     def munge_key_manager(self) -> MungeKeyManager:
-        """Get the `MungekeyManager` of this ops manager."""
+        """Get the `MungeKeyManager` of this operations manager."""
 
 
 class MungeManager:
@@ -439,7 +430,9 @@ class SnapManager(SlurmOpsManager):
         """Get the current version of the `slurm` snap installed on the system."""
         info = yaml.safe_load(_snap("info", "slurm"))
         if (ver := info.get("installed")) is None:
-            raise SlurmOpsError("unable to retrive snap info. ensure slurm is correctly installed")
+            raise SlurmOpsError(
+                "unable to retrieve snap info. ensure slurm is correctly installed"
+            )
         return ver.split(maxsplit=1)[0]
 
     @property
