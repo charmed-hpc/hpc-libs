@@ -156,7 +156,7 @@ class ServiceType(Enum):
     """Type of Slurm service to manage."""
 
     MUNGED = "munged"
-    PROMETHEUS_EXPORTER = "slurm-prometheus-exporter"
+    PROMETHEUS_EXPORTER = "prometheus-slurm-exporter"
     SLURMD = "slurmd"
     SLURMCTLD = "slurmctld"
     SLURMDBD = "slurmdbd"
@@ -299,7 +299,7 @@ class MungeManager:
 
 
 class PrometheusExporterManager:
-    """Manage `slurm-prometheus-exporter` service operations."""
+    """Manage `prometheus-slurm-exporter` service operations."""
 
     def __init__(self, ops_manager: SlurmOpsManager) -> None:
         self.service = ops_manager.service_manager_for(ServiceType.PROMETHEUS_EXPORTER)
