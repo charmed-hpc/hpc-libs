@@ -342,7 +342,7 @@ class SlurmdManager(SlurmManagerBase):
     This service will additionally provide some environment variables that need to be
     passed through to the service in case the default service is overriden (e.g. a systemctl file override).
 
-        - SLURM_CONFIG_SERVER. Sets the `--conf-server` option for `slurmd`.
+        - SLURMD_CONFIG_SERVER. Sets the `--conf-server` option for `slurmd`.
     """
 
     def __init__(self, *args, **kwargs) -> None:
