@@ -461,7 +461,15 @@ class _AptManager(_OpsManager):
         repositories.add(experimental)
 
         apt.update()
-        for package in ["slurm-wlm", "mungectl", "prometheus-slurm-exporter"]:
+        for package in [
+            "slurmctld",
+            "slurmd",
+            "slurmdbd",
+            "slurmrestd",
+            "slurm-client",
+            "mungectl",
+            "prometheus-slurm-exporter",
+        ]:
             try:
                 apt.add_package(package)
             except apt.PackageNotFoundError as e:
