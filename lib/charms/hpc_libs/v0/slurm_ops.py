@@ -52,13 +52,6 @@ class ApplicationCharm(CharmBase):
 
 __all__ = [
     "SlurmOpsError",
-    "ServiceType",
-    "SlurmOpsManager",
-    "ServiceManager",
-    "MungeKeyManager",
-    "MungeManager",
-    "SnapManager",
-    "SlurmManagerBase",
     "SlurmctldManager",
     "SlurmdManager",
     "SlurmdbdManager",
@@ -128,13 +121,14 @@ def _call(
         SlurmOpsError: Raised if the command fails.
     """
     cmd = [cmd, *args]
-    _logger.debug(f"Executing command {cmd}")
+    _logger.debug(f"executing command {cmd}")
 
     result = subprocess.run(cmd, input=stdin, capture_output=True, text=True)
     if result.returncode != 0:
         _logger.error(f"command {cmd} failed with message {result.stderr}")
         if check:
             raise SlurmOpsError(f"command {cmd} failed. stderr:\n{result.stderr}")
+
     return subprocess.CompletedProcess(
         args=result.args,
         stdout=result.stdout.strip() if result.stdout else None,
@@ -147,12 +141,33 @@ def _snap(*args) -> str:
     """Control snap by via executed `snap ...` commands.
 
     Raises:
-        subprocess.CalledProcessError: Raised if snap command fails.
+        SlurmOpsError: Raised if snap command fails.
     """
     return _call("snap", *args).stdout
 
 
-class ServiceType(Enum):
+def _systemctl(*args) -> str:
+    """Control systemd units via `systemctl ...` commands.
+
+    Raises:
+        SlurmOpsError: Raised if systemctl command fails.
+    """
+    return _call(
+        "systemctl",
+        *args,
+    ).stdout
+
+
+def _mungectl(*args, stdin: Optional[str] = None) -> str:
+    """Control munge via `mungectl ...` commands.
+
+    Raises:
+        SlurmOpsError: Raised if mungectl command fails.
+    """
+    return _call("mungectl", *args, stdin=stdin).stdout
+
+
+class _ServiceType(Enum):
     """Type of Slurm service to manage."""
 
     MUNGED = "munged"
@@ -165,76 +180,12 @@ class ServiceType(Enum):
     @property
     def config_name(self) -> str:
         """Configuration name on the slurm snap for this service type."""
-        if self is ServiceType.SLURMCTLD:
+        if self is _ServiceType.SLURMCTLD:
             return "slurm"
-        if self is ServiceType.MUNGED:
+        if self is _ServiceType.MUNGED:
             return "munge"
 
         return self.value
-
-
-class ServiceManager(ABC):
-    """Control a Slurm service."""
-
-    @abstractmethod
-    def __init__(self, service: ServiceType) -> None: ...
-
-    @abstractmethod
-    def enable(self) -> None:
-        """Enable service."""
-
-    @abstractmethod
-    def disable(self) -> None:
-        """Disable service."""
-
-    @abstractmethod
-    def restart(self) -> None:
-        """Restart service."""
-
-    @abstractmethod
-    def active(self) -> bool:
-        """Return True if the service is active."""
-
-    @property
-    @abstractmethod
-    def type(self) -> ServiceType:
-        """Return the service type of the managed service."""
-
-
-class MungeKeyManager:
-    """Control the munge key."""
-
-    def _mungectl(self, *args: str, stdin: Optional[str] = None) -> str:
-        """Control munge via `mungectl ...`.
-
-        Args:
-            *args: Arguments to pass to `mungectl`.
-            stdin: Input to pass to `mungectl` via stdin.
-
-        Raises:
-            subprocess.CalledProcessError: Raised if `mungectl` command fails.
-        """
-        return _call("mungectl", *args, stdin=stdin).stdout
-
-    def get(self) -> str:
-        """Get the current munge key.
-
-        Returns:
-            The current munge key as a base64-encoded string.
-        """
-        return self._mungectl("key", "get")
-
-    def set(self, key: str) -> None:
-        """Set a new munge key.
-
-        Args:
-            key: A new, base64-encoded munge key.
-        """
-        self._mungectl("key", "set", stdin=key)
-
-    def generate(self) -> None:
-        """Generate a new, cryptographically secure munge key."""
-        self._mungectl("key", "generate")
 
 
 class _EnvManager:
@@ -265,132 +216,63 @@ class _EnvManager:
         dotenv.unset_key(self._file, self._config_to_env_var(key))
 
 
-class SlurmOpsManager(ABC):
-    """Manager to control the installation, creation and configuration of Slurm-related services."""
-
-    @abstractmethod
-    def install(self) -> None:
-        """Install Slurm."""
-
-    @abstractmethod
-    def version(self) -> str:
-        """Get the current version of Slurm installed on the system."""
-
-    @property
-    @abstractmethod
-    def slurm_path(self) -> Path:
-        """Get the path to the Slurm configuration directory."""
-
-    @abstractmethod
-    def service_manager_for(self, type: ServiceType) -> ServiceManager:
-        """Return the `ServiceManager` for the specified `ServiceType`."""
-
-    @abstractmethod
-    def _env_manager_for(self, type: ServiceType) -> _EnvManager:
-        """Return the `_EnvManager` for the specified `ServiceType`."""
-
-
-class MungeManager:
-    """Manage `munged` service operations."""
-
-    def __init__(self, ops_manager: SlurmOpsManager) -> None:
-        self.service = ops_manager.service_manager_for(ServiceType.MUNGED)
-        self.key = MungeKeyManager()
-
-
-class PrometheusExporterManager:
-    """Manage `prometheus-slurm-exporter` service operations."""
-
-    def __init__(self, ops_manager: SlurmOpsManager) -> None:
-        self.service = ops_manager.service_manager_for(ServiceType.PROMETHEUS_EXPORTER)
-
-
-class SlurmManagerBase:
-    """Base manager for Slurm services."""
-
-    def __init__(self, service: ServiceType, snap: bool = False) -> None:
-        self._ops_manager = SnapManager() if snap else AptManager()
-        self.service = self._ops_manager.service_manager_for(service)
-        self.munge = MungeManager(self._ops_manager)
-        self.exporter = PrometheusExporterManager(self._ops_manager)
-        self.install = self._ops_manager.install
-        self.version = self._ops_manager.version
-
-    @property
-    def hostname(self) -> str:
-        """The hostname where this manager is running."""
-        return socket.gethostname().split(".")[0]
-
-
-class SlurmctldManager(SlurmManagerBase):
-    """Manager for the Slurmctld service."""
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(service=ServiceType.SLURMCTLD, *args, **kwargs)
-        self._config_path = self._ops_manager.slurm_path / "slurm.conf"
-
-    @contextmanager
-    def config(self) -> slurmconfig.SlurmConfig:
-        """Get the config manager of slurmctld."""
-        with slurmconfig.edit(self._config_path) as config:
-            yield config
-
-
-class SlurmdManager(SlurmManagerBase):
-    """Manager for the Slurmd service.
-
-    This service will additionally provide some environment variables that need to be
-    passed through to the service in case the default service is overriden (e.g. a systemctl file override).
-
-        - SLURMD_CONFIG_SERVER. Sets the `--conf-server` option for `slurmd`.
-    """
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(service=ServiceType.SLURMD, *args, **kwargs)
-        self._env_manager = self._ops_manager._env_manager_for(ServiceType.SLURMD)
-
-    @property
-    def config_server(self) -> str:
-        """Get the config server address of this Slurmd node."""
-        return self._env_manager.get("CONFIG_SERVER")
-
-    @config_server.setter
-    def config_server(self, addr: str) -> None:
-        """Set the config server address of this Slurmd node."""
-        self._env_manager.set({"CONFIG_SERVER": addr})
-
-    @config_server.deleter
-    def config_server(self) -> None:
-        """Unset the config server address of this Slurmd node."""
-        self._env_manager.unset("CONFIG_SERVER")
-
-
-class SlurmdbdManager(SlurmManagerBase):
-    """Manager for the Slurmdbd service."""
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(service=ServiceType.SLURMDBD, *args, **kwargs)
-        self._config_path = self._ops_manager.slurm_path / "slurmdbd.conf"
-
-    @contextmanager
-    def config(self) -> slurmdbdconfig.SlurmdbdConfig:
-        """Get the config manager of slurmctld."""
-        with slurmdbdconfig.edit(self._config_path) as config:
-            yield config
-
-
-class SlurmrestdManager(SlurmManagerBase):
-    """Manager for the Slurmrestd service."""
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(service=ServiceType.SLURMRESTD, *args, **kwargs)
-
-
-class _SnapServiceManager(ServiceManager):
+class _ServiceManager(ABC):
     """Control a Slurm service."""
 
-    def __init__(self, service: ServiceType) -> None:
+    def __init__(self, service: _ServiceType) -> None:
         self._service = service
+
+    @abstractmethod
+    def enable(self) -> None:
+        """Enable service."""
+
+    @abstractmethod
+    def disable(self) -> None:
+        """Disable service."""
+
+    @abstractmethod
+    def restart(self) -> None:
+        """Restart service."""
+
+    @abstractmethod
+    def active(self) -> bool:
+        """Return True if the service is active."""
+
+    @property
+    def type(self) -> _ServiceType:
+        """Return the service type of the managed service."""
+        return self._service
+
+
+class _SystemctlServiceManager(_ServiceManager):
+    """Control a Slurm service using systemctl services."""
+
+    def enable(self) -> None:
+        """Enable service.
+
+        Raises:
+            SlurmOpsError: Raised if `systemctl enable ...` returns a non-zero returncode.
+        """
+        _systemctl("enable", "--now", self._service.value)
+
+    def disable(self) -> None:
+        """Disable service."""
+        _systemctl("disable", "--now", self._service.value)
+
+    def restart(self) -> None:
+        """Restart service."""
+        _systemctl("reload-or-restart", self._service.value)
+
+    def active(self) -> bool:
+        """Return True if the service is active."""
+        return (
+            _call("systemctl", "is-active", "--quiet", self._service.value, check=False).returncode
+            == 0
+        )
+
+
+class _SnapServiceManager(_ServiceManager):
+    """Control a Slurm service."""
 
     def enable(self) -> None:
         """Enable service."""
@@ -415,13 +297,33 @@ class _SnapServiceManager(ServiceManager):
         # We don't do `"active" in state` because the word "active" is also part of "inactive" :)
         return "inactive" not in services[f"slurm.{self._service.value}"]
 
+
+class _OpsManager(ABC):
+    """Manager to control the installation, creation and configuration of Slurm-related services."""
+
+    @abstractmethod
+    def install(self) -> None:
+        """Install Slurm."""
+
+    @abstractmethod
+    def version(self) -> str:
+        """Get the current version of Slurm installed on the system."""
+
     @property
-    def type(self) -> ServiceType:
-        """Return the service type of the managed service."""
-        return self._service
+    @abstractmethod
+    def slurm_path(self) -> Path:
+        """Get the path to the Slurm configuration directory."""
+
+    @abstractmethod
+    def service_manager_for(self, type: _ServiceType) -> _ServiceManager:
+        """Return the `ServiceManager` for the specified `ServiceType`."""
+
+    @abstractmethod
+    def _env_manager_for(self, type: _ServiceType) -> _EnvManager:
+        """Return the `_EnvManager` for the specified `ServiceType`."""
 
 
-class SnapManager(SlurmOpsManager):
+class _SnapManager(_OpsManager):
     """Slurm ops manager that uses Snap as its package manager."""
 
     def install(self) -> None:
@@ -445,58 +347,16 @@ class SnapManager(SlurmOpsManager):
         """Get the path to the Slurm configuration directory."""
         return Path("/var/snap/slurm/common/etc/slurm")
 
-    def service_manager_for(self, type: ServiceType) -> ServiceManager:
+    def service_manager_for(self, type: _ServiceType) -> _ServiceManager:
         """Return the `ServiceManager` for the specified `ServiceType`."""
         return _SnapServiceManager(type)
 
-    def _env_manager_for(self, type: ServiceType) -> _EnvManager:
+    def _env_manager_for(self, type: _ServiceType) -> _EnvManager:
         """Return the `_EnvManager` for the specified `ServiceType`."""
         return _EnvManager(file="/var/snap/slurm/common/.env", prefix=type.value)
 
 
-# ========================= deb manager =========================
-
-
-class _SystemctlServiceManager(ServiceManager):
-    """Control a Slurm service using systemctl services."""
-
-    def __init__(self, service: ServiceType) -> None:
-        def systemctl(*args) -> str:
-            return _call("systemctl", *args, service.value).stdout
-
-        self._service = service
-        self._systemctl = systemctl
-
-    def enable(self) -> None:
-        """Enable service.
-
-        Raises:
-            SlurmOpsError: Raised if `systemctl enable ...` returns a non-zero returncode.
-        """
-        self._systemctl("enable", "--now")
-
-    def disable(self) -> None:
-        """Disable service."""
-        self._systemctl("disable", "--now")
-
-    def restart(self) -> None:
-        """Restart service."""
-        self._systemctl("reload-or-restart")
-
-    def active(self) -> bool:
-        """Return True if the service is active."""
-        return (
-            _call("systemctl", "is-active", "--quiet", self._service.value, check=False).returncode
-            == 0
-        )
-
-    @property
-    def type(self) -> ServiceType:
-        """Return the service type of the managed service."""
-        return self._service
-
-
-class AptManager(SlurmOpsManager):
+class _AptManager(_OpsManager):
     """Slurm ops manager that uses apt as its package manager.
 
     NOTE: This manager provides some environment variables that are automatically passed to the
@@ -639,10 +499,133 @@ class AptManager(SlurmOpsManager):
         """Get the path to the Slurm configuration directory."""
         return Path("/etc/slurm")
 
-    def service_manager_for(self, type: ServiceType) -> ServiceManager:
+    def service_manager_for(self, type: _ServiceType) -> _ServiceManager:
         """Return the `ServiceManager` for the specified `ServiceType`."""
         return _SystemctlServiceManager(type)
 
-    def _env_manager_for(self, type: ServiceType) -> _EnvManager:
+    def _env_manager_for(self, type: _ServiceType) -> _EnvManager:
         """Return the `_EnvManager` for the specified `ServiceType`."""
         return _EnvManager(file=self._ENV_FILE, prefix=type.value)
+
+
+class _MungeKeyManager:
+    """Control the munge key via `mungectl ...` commands."""
+
+    @staticmethod
+    def get() -> str:
+        """Get the current munge key.
+
+        Returns:
+            The current munge key as a base64-encoded string.
+        """
+        return _mungectl("key", "get")
+
+    @staticmethod
+    def set(key: str) -> None:
+        """Set a new munge key.
+
+        Args:
+            key: A new, base64-encoded munge key.
+        """
+        _mungectl("key", "set", stdin=key)
+
+    @staticmethod
+    def generate() -> None:
+        """Generate a new, cryptographically secure munge key."""
+        _mungectl("key", "generate")
+
+
+class _MungeManager:
+    """Manage `munged` service operations."""
+
+    def __init__(self, ops_manager: _OpsManager) -> None:
+        self.service = ops_manager.service_manager_for(_ServiceType.MUNGED)
+        self.key = _MungeKeyManager()
+
+
+class _PrometheusExporterManager:
+    """Manage `prometheus-slurm-exporter` service operations."""
+
+    def __init__(self, ops_manager: _OpsManager) -> None:
+        self.service = ops_manager.service_manager_for(_ServiceType.PROMETHEUS_EXPORTER)
+
+
+class _SlurmManagerBase:
+    """Base manager for Slurm services."""
+
+    def __init__(self, service: _ServiceType, snap: bool = False) -> None:
+        self._ops_manager = _SnapManager() if snap else _AptManager()
+        self.service = self._ops_manager.service_manager_for(service)
+        self.munge = _MungeManager(self._ops_manager)
+        self.exporter = _PrometheusExporterManager(self._ops_manager)
+        self.install = self._ops_manager.install
+        self.version = self._ops_manager.version
+
+    @property
+    def hostname(self) -> str:
+        """The hostname where this manager is running."""
+        return socket.gethostname().split(".")[0]
+
+
+class SlurmctldManager(_SlurmManagerBase):
+    """Manager for the Slurmctld service."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(service=_ServiceType.SLURMCTLD, *args, **kwargs)
+        self._config_path = self._ops_manager.slurm_path / "slurm.conf"
+
+    @contextmanager
+    def config(self) -> slurmconfig.SlurmConfig:
+        """Get the config manager of slurmctld."""
+        with slurmconfig.edit(self._config_path) as config:
+            yield config
+
+
+class SlurmdManager(_SlurmManagerBase):
+    """Manager for the Slurmd service.
+
+    This service will additionally provide some environment variables that need to be
+    passed through to the service in case the default service is overriden (e.g. a systemctl file override).
+
+        - SLURMD_CONFIG_SERVER. Sets the `--conf-server` option for `slurmd`.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(service=_ServiceType.SLURMD, *args, **kwargs)
+        self._env_manager = self._ops_manager._env_manager_for(_ServiceType.SLURMD)
+
+    @property
+    def config_server(self) -> str:
+        """Get the config server address of this Slurmd node."""
+        return self._env_manager.get("CONFIG_SERVER")
+
+    @config_server.setter
+    def config_server(self, addr: str) -> None:
+        """Set the config server address of this Slurmd node."""
+        self._env_manager.set({"CONFIG_SERVER": addr})
+
+    @config_server.deleter
+    def config_server(self) -> None:
+        """Unset the config server address of this Slurmd node."""
+        self._env_manager.unset("CONFIG_SERVER")
+
+
+class SlurmdbdManager(_SlurmManagerBase):
+    """Manager for the Slurmdbd service."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(service=_ServiceType.SLURMDBD, *args, **kwargs)
+        self._config_path = self._ops_manager.slurm_path / "slurmdbd.conf"
+
+    @contextmanager
+    def config(self) -> slurmdbdconfig.SlurmdbdConfig:
+        """Get the config manager of slurmctld."""
+        with slurmdbdconfig.edit(self._config_path) as config:
+            yield config
+
+
+class SlurmrestdManager(_SlurmManagerBase):
+    """Manager for the Slurmrestd service."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(service=_ServiceType.SLURMRESTD, *args, **kwargs)

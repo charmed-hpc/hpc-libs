@@ -13,13 +13,13 @@ from unittest.mock import patch
 import charms.hpc_libs.v0.slurm_ops as slurm
 import dotenv
 from charms.hpc_libs.v0.slurm_ops import (
-    ServiceType,
     SlurmctldManager,
     SlurmdbdManager,
     SlurmdManager,
-    SlurmManagerBase,
     SlurmOpsError,
-    SnapManager,
+    _ServiceType,
+    _SlurmManagerBase,
+    _SnapManager,
 )
 from pyfakefs.fake_filesystem_unittest import TestCase as FsTestCase
 
@@ -86,7 +86,7 @@ class TestSlurmOps(TestCase):
 )
 class TestSnapPackageManager(FsTestCase):
     def setUp(self):
-        self.manager = SnapManager()
+        self.manager = _SnapManager()
         self.setUpPyfakefs()
         self.fs.create_file("/var/snap/slurm/common/.env")
 
@@ -213,10 +213,10 @@ class SlurmOpsBase:
 
 
 parameters = [
-    (SlurmManagerBase(ServiceType.SLURMCTLD, snap=True), "slurm"),
-    (SlurmManagerBase(ServiceType.SLURMD, snap=True), "slurmd"),
-    (SlurmManagerBase(ServiceType.SLURMDBD, snap=True), "slurmdbd"),
-    (SlurmManagerBase(ServiceType.SLURMRESTD, snap=True), "slurmrestd"),
+    (_SlurmManagerBase(_ServiceType.SLURMCTLD, snap=True), "slurm"),
+    (_SlurmManagerBase(_ServiceType.SLURMD, snap=True), "slurmd"),
+    (_SlurmManagerBase(_ServiceType.SLURMDBD, snap=True), "slurmdbd"),
+    (_SlurmManagerBase(_ServiceType.SLURMRESTD, snap=True), "slurmrestd"),
 ]
 
 for manager, config_name in parameters:
