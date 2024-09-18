@@ -566,6 +566,15 @@ class _SlurmManagerBase:
         """The hostname where this manager is running."""
         return socket.gethostname().split(".")[0]
 
+    @staticmethod
+    def scontrol(*args) -> str:
+        """Control Slurm via `scontrol` commands.
+
+        Raises:
+            SlurmOpsError: Raised if scontrol command fails.
+        """
+        return _call("scontrol", *args).stdout
+
 
 class SlurmctldManager(_SlurmManagerBase):
     """Manager for the Slurmctld service."""
