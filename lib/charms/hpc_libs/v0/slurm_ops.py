@@ -359,12 +359,15 @@ class _SnapManager(_OpsManager):
 class _AptManager(_OpsManager):
     """Slurm ops manager that uses apt as its package manager.
 
-    NOTE: This manager provides some environment variables that are automatically passed to the
-    services with a systemctl override file. If you need to override the ExecStart parameter,
-    ensure the new command correctly passes the environment variable to the command.
+    Notes:
+        This manager provides some environment variables that are automatically passed to the
+        services with a systemctl override file. If you need to override the ExecStart parameter,
+        ensure the new command correctly passes the environment variable to the command.
     """
 
-    _ENV_FILE = Path("/etc/default/slurm_ops")
+    def __init__(self, service: _ServiceType) -> None:
+        self._service_name = service.value
+        self._env_file = Path(f"/etc/default/{self._service_name}")
 
     def install(self) -> None:
         """Install Slurm using the `slurm` snap."""
@@ -460,47 +463,35 @@ class _AptManager(_OpsManager):
         repositories.add(slurm_wlm)
         repositories.add(experimental)
 
-        apt.update()
-        for package in [
-            "slurmctld",
-            "slurmd",
-            "slurmdbd",
-            "slurmrestd",
-            "slurm-client",
-            "mungectl",
-            "prometheus-slurm-exporter",
-        ]:
-            try:
-                apt.add_package(package)
-            except apt.PackageNotFoundError as e:
-                raise SlurmOpsError(f"package {package} not found. reason: {e}")
-            except apt.PackageError as e:
-                raise SlurmOpsError(f"failed to install package {package}. reason: {e}")
+        try:
+            apt.update()
+            apt.add_package([self._service_name, "mungectl", "prometheus-slurm-exporter"])
+        except apt.PackageNotFoundError as e:
+            raise SlurmOpsError(f"failed to install {self._service_name}. reason: {e}")
+        except apt.PackageError as e:
+            raise SlurmOpsError(f"failed to install {self._service_name}. reason: {e}")
 
-        self._ENV_FILE.touch(exist_ok=True)
+        self._env_file.touch(exist_ok=True)
 
-        override = Path("/etc/systemd/system/slurmd.service.d/10-slurmd-conf-server.conf")
-        override.parent.mkdir(exist_ok=True, parents=True)
-        override.write_text(
-            textwrap.dedent(
-                """
-                [Service]
-                EnvironmentFile=/etc/default/slurm_ops
-                ExecStart=
-                ExecStart=/usr/bin/sh -c "/usr/sbin/slurmd -D -s $${SLURMD_CONFIG_SERVER:+--conf-server $$SLURMD_CONFIG_SERVER} $$SLURMD_OPTIONS"
-                """
+        if self._service_name == "slurmd":
+            override = Path("/etc/systemd/system/slurmd.service.d/10-slurmd-conf-server.conf")
+            override.parent.mkdir(exist_ok=True, parents=True)
+            override.write_text(
+                textwrap.dedent(
+                    """
+                    [Service]
+                    ExecStart=
+                    ExecStart=/usr/bin/sh -c "/usr/sbin/slurmd -D -s $${SLURMD_CONFIG_SERVER:+--conf-server $$SLURMD_CONFIG_SERVER} $$SLURMD_OPTIONS"
+                    """
+                )
             )
-        )
 
     def version(self) -> str:
-        """Get the current version of the `slurm-wlm` installed on the system."""
+        """Get the current version of Slurm installed on the system."""
         try:
-            return apt.DebianPackage.from_installed_package("slurm-wlm").version.number
+            return apt.DebianPackage.from_installed_package(self._service_name).version.number
         except apt.PackageNotFoundError as e:
-            _logger.error(e)
-            raise SlurmOpsError(
-                "unable to retrieve slurm-wlm version. ensure slurm-wlm is correctly installed"
-            )
+            raise SlurmOpsError(f"unable to retrieve {self._service_name} version. reason: {e}")
 
     @property
     def slurm_path(self) -> Path:
@@ -513,7 +504,7 @@ class _AptManager(_OpsManager):
 
     def _env_manager_for(self, type: _ServiceType) -> _EnvManager:
         """Return the `_EnvManager` for the specified `ServiceType`."""
-        return _EnvManager(file=self._ENV_FILE, prefix=type.value)
+        return _EnvManager(file=self._env_file, prefix=type.value)
 
 
 class _MungeKeyManager:
@@ -562,7 +553,7 @@ class _SlurmManagerBase:
     """Base manager for Slurm services."""
 
     def __init__(self, service: _ServiceType, snap: bool = False) -> None:
-        self._ops_manager = _SnapManager() if snap else _AptManager()
+        self._ops_manager = _SnapManager() if snap else _AptManager(service)
         self.service = self._ops_manager.service_manager_for(service)
         self.munge = _MungeManager(self._ops_manager)
         self.exporter = _PrometheusExporterManager(self._ops_manager)
