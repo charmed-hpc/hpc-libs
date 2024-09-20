@@ -26,9 +26,6 @@ def test_install(slurmctld: SlurmctldManager, etc_path: Path) -> None:
     assert key == slurmctld.munge.key.get()
 
 
-"sz+VRDLFlr3o"
-
-
 @pytest.mark.order(2)
 def test_rotate_key(slurmctld: SlurmctldManager) -> None:
     """Test that the munge key can be rotated."""
@@ -39,13 +36,13 @@ def test_rotate_key(slurmctld: SlurmctldManager) -> None:
 
 
 @pytest.mark.order(3)
-def test_slurm_config(slurmctld: SlurmctldManager, etc_path: Path) -> None:
+def test_slurm_config(slurmctld: SlurmctldManager) -> None:
     """Test that the slurm config can be changed."""
-    with slurmctld.config() as config:
+    with slurmctld.config.edit() as config:
         config.slurmctld_host = [slurmctld.hostname]
         config.cluster_name = "test-cluster"
 
-    for line in (etc_path / "slurm" / "slurm.conf").read_text().splitlines():
+    for line in str(slurmctld.config.load()).splitlines():
         entry = line.split("=")
         if len(entry) != 2:
             continue
@@ -58,7 +55,7 @@ def test_slurm_config(slurmctld: SlurmctldManager, etc_path: Path) -> None:
 
 @pytest.mark.order(4)
 def test_enable_service(slurmctld: SlurmctldManager) -> None:
-    """Test that the slurmctl daemon can be enabled."""
+    """Test that the slurmctld daemon can be enabled."""
     slurmctld.service.enable()
     assert slurmctld.service.active()
 
