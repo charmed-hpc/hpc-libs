@@ -73,7 +73,8 @@ from typing import Any, Optional, Union
 import distro
 import dotenv
 import yaml
-from slurmutils.editors import slurmconfig, slurmdbdconfig
+from slurmutils.editors import cgroupconfig, slurmconfig, slurmdbdconfig
+from slurmutils.models import CgroupConfig, SlurmConfig, SlurmdbdConfig
 
 try:
     import charms.operator_libs_linux.v0.apt as apt
@@ -95,7 +96,7 @@ LIBAPI = 0
 LIBPATCH = 7
 
 # Charm library dependencies to fetch during `charmcraft pack`.
-PYDEPS = ["pyyaml>=6.0.2", "python-dotenv~=1.0.1", "slurmutils~=0.6.0", "distro~=1.9.0"]
+PYDEPS = ["pyyaml>=6.0.2", "python-dotenv~=1.0.1", "slurmutils~=0.7.0", "distro~=1.9.0"]
 
 _logger = logging.getLogger(__name__)
 
@@ -213,6 +214,85 @@ class _EnvManager:
         dotenv.unset_key(self._file, self._config_to_env_var(key))
 
 
+class _ConfigManager(ABC):
+    """Control a Slurm configuration file."""
+
+    def __init__(self, config_path: Union[str, Path]) -> None:
+        self._config_path = config_path
+
+    @abstractmethod
+    def load(self):
+        """Load the current configuration from the configuration file."""
+
+    @abstractmethod
+    def dump(self, config) -> None:
+        """Dump new configuration into configuration file.
+
+        Notes:
+            Overwrites current configuration file. If just updating the
+            current configuration, use `edit` instead.
+        """
+
+    @contextmanager
+    @abstractmethod
+    def edit(self):
+        """Edit the current configuration file."""
+
+
+class _SlurmConfigManager(_ConfigManager):
+    """Control the `slurm.conf` configuration file."""
+
+    def load(self) -> SlurmConfig:
+        """Load the current `slurm.conf` configuration file."""
+        return slurmconfig.load(self._config_path)
+
+    def dump(self, config: SlurmConfig) -> None:
+        """Dump new configuration into `slurm.conf` configuration file."""
+        slurmconfig.dump(config, self._config_path)
+
+    @contextmanager
+    def edit(self) -> SlurmConfig:
+        """Edit the current `slurm.conf` configuration file."""
+        with slurmconfig.edit(self._config_path) as config:
+            yield config
+
+
+class _CgroupConfigManager(_ConfigManager):
+    """Control the `cgroup.conf` configuration file."""
+
+    def load(self) -> CgroupConfig:
+        """Load the current `cgroup.conf` configuration file."""
+        return cgroupconfig.load(self._config_path)
+
+    def dump(self, config: CgroupConfig) -> None:
+        """Dump new configuration into `cgroup.conf` configuration file."""
+        cgroupconfig.dump(config, self._config_path)
+
+    @contextmanager
+    def edit(self) -> CgroupConfig:
+        """Edit the current `cgroup.conf` configuration file."""
+        with cgroupconfig.edit(self._config_path) as config:
+            yield config
+
+
+class _SlurmdbdConfigManager(_ConfigManager):
+    """Control the `slurmdbd.conf` configuration file."""
+
+    def load(self) -> SlurmdbdConfig:
+        """Load the current `slurmdbd.conf` configuration file."""
+        return slurmdbdconfig.load(self._config_path)
+
+    def dump(self, config: SlurmdbdConfig) -> None:
+        """Dump new configuration into `slurmdbd.conf` configuration file."""
+        slurmdbdconfig.dump(config, self._config_path)
+
+    @contextmanager
+    def edit(self) -> SlurmdbdConfig:
+        """Edit the current `slurmdbd.conf` configuration file."""
+        with slurmdbdconfig.edit(self._config_path) as config:
+            yield config
+
+
 class _ServiceManager(ABC):
     """Control a Slurm service."""
 
@@ -308,7 +388,7 @@ class _OpsManager(ABC):
 
     @property
     @abstractmethod
-    def slurm_path(self) -> Path:
+    def etc_path(self) -> Path:
         """Get the path to the Slurm configuration directory."""
 
     @abstractmethod
@@ -340,7 +420,7 @@ class _SnapManager(_OpsManager):
         return ver.split(maxsplit=1)[0]
 
     @property
-    def slurm_path(self) -> Path:
+    def etc_path(self) -> Path:
         """Get the path to the Slurm configuration directory."""
         return Path("/var/snap/slurm/common/etc/slurm")
 
@@ -491,7 +571,7 @@ class _AptManager(_OpsManager):
             raise SlurmOpsError(f"unable to retrieve {self._service_name} version. reason: {e}")
 
     @property
-    def slurm_path(self) -> Path:
+    def etc_path(self) -> Path:
         """Get the path to the Slurm configuration directory."""
         return Path("/etc/slurm")
 
@@ -577,13 +657,8 @@ class SlurmctldManager(_SlurmManagerBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(service=_ServiceType.SLURMCTLD, *args, **kwargs)
-        self._config_path = self._ops_manager.slurm_path / "slurm.conf"
-
-    @contextmanager
-    def config(self) -> slurmconfig.SlurmConfig:
-        """Get the config manager of slurmctld."""
-        with slurmconfig.edit(self._config_path) as config:
-            yield config
+        self.config = _SlurmConfigManager(self._ops_manager.etc_path / "slurm.conf")
+        self.cgroup = _CgroupConfigManager(self._ops_manager.etc_path / "cgroup.conf")
 
 
 class SlurmdManager(_SlurmManagerBase):
@@ -620,13 +695,7 @@ class SlurmdbdManager(_SlurmManagerBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(service=_ServiceType.SLURMDBD, *args, **kwargs)
-        self._config_path = self._ops_manager.slurm_path / "slurmdbd.conf"
-
-    @contextmanager
-    def config(self) -> slurmdbdconfig.SlurmdbdConfig:
-        """Get the config manager of slurmctld."""
-        with slurmdbdconfig.edit(self._config_path) as config:
-            yield config
+        self.config = _SlurmdbdConfigManager(self._ops_manager.etc_path / "slurmdbd.conf")
 
 
 class SlurmrestdManager(_SlurmManagerBase):
