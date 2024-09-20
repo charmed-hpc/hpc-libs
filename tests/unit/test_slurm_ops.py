@@ -7,7 +7,6 @@
 import base64
 import subprocess
 import textwrap
-from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -306,7 +305,7 @@ class TestSlurmctldConfig(FsTestCase):
 
     def test_config(self, *_) -> None:
         """Test that the manager can manipulate the configuration file."""
-        with self.manager.config() as config:
+        with self.manager.config.edit() as config:
             self.assertEqual(config.slurmd_log_file, "/var/log/slurm/slurmd.log")
             self.assertEqual(config.nodes["juju-c9fc6f-2"]["NodeAddr"], "10.152.28.48")
             self.assertEqual(config.down_nodes[0]["State"], "DOWN")
@@ -320,17 +319,61 @@ class TestSlurmctldConfig(FsTestCase):
             del config.return_to_service
 
         # Exit the context to save changes to the file
+        config = self.manager.config.load()
+        self.assertEqual(config.slurmctld_port, "8081")
+        self.assertNotEqual(config.return_to_service, "0")
 
-        configs = Path("/var/snap/slurm/common/etc/slurm/slurm.conf").read_text().splitlines()
-
-        self.assertIn("SlurmctldPort=8081", configs)
+        config_content = str(config).splitlines()
         self.assertIn(
             "NodeName=juju-c9fc6f-2 NodeAddr=10.152.28.48 CPUs=10 RealMemory=1000 TmpDisk=10000",
-            configs,
+            config_content,
         )
-        self.assertIn("NodeName=juju-c9fc6f-20 CPUs=1", configs)
-        self.assertIn('DownNodes=juju-c9fc6f-3 State=DOWN Reason="New nodes"', configs)
-        self.assertNotIn("ReturnToService=0", configs)
+        self.assertIn("NodeName=juju-c9fc6f-20 CPUs=1", config_content)
+        self.assertIn('DownNodes=juju-c9fc6f-3 State=DOWN Reason="New nodes"', config_content)
+
+
+@patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
+class TestCgroupConfig(FsTestCase):
+    """Test the Slurmctld service cgroup config manager."""
+
+    EXAMPLE_CGROUP_CONF = textwrap.dedent(
+        """
+        #
+        # `cgroup.conf` file generated at 2024-09-18 15:10:44.652017 by slurmutils.
+        #
+        ConstrainCores=yes
+        ConstrainDevices=yes
+        ConstrainRAMSpace=yes
+        ConstrainSwapSpace=yes
+        """
+    ).strip()
+
+    def setUp(self) -> None:
+        self.manager = SlurmctldManager(snap=True)
+        self.config_name = "slurmctld"
+        self.setUpPyfakefs()
+        self.fs.create_file("/var/snap/slurm/common/.env")
+        self.fs.create_file(
+            "/var/snap/slurm/common/etc/slurm/cgroup.conf", contents=self.EXAMPLE_CGROUP_CONF
+        )
+
+    def test_config(self, *_) -> None:
+        """Test that manager can manipulate cgroup.conf configuration file."""
+        with self.manager.cgroup.edit() as config:
+            self.assertEqual(config.constrain_cores, "yes")
+            self.assertEqual(config.constrain_devices, "yes")
+
+            config.constrain_cores = "no"
+            config.constrain_devices = "no"
+            config.constrain_ram_space = "no"
+            config.constrain_swap_space = "no"
+
+        # Exit the context to save changes to the file
+        config = self.manager.cgroup.load()
+        self.assertEqual(config.constrain_cores, "no")
+        self.assertEqual(config.constrain_devices, "no")
+        self.assertEqual(config.constrain_ram_space, "no")
+        self.assertEqual(config.constrain_swap_space, "no")
 
 
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
@@ -387,7 +430,7 @@ class TestSlurmdbdConfig(FsTestCase):
 
     def test_config(self, *_) -> None:
         """Test that the manager can manipulate the configuration file."""
-        with self.manager.config() as config:
+        with self.manager.config.edit() as config:
             self.assertEqual(config.auth_type, "auth/munge")
             self.assertEqual(config.debug_level, "info")
 
@@ -396,12 +439,10 @@ class TestSlurmdbdConfig(FsTestCase):
             del config.slurm_user
 
         # Exit the context to save changes to the file
-
-        configs = Path("/var/snap/slurm/common/etc/slurm/slurmdbd.conf").read_text().splitlines()
-
-        self.assertIn("StoragePass=newpass", configs)
-        self.assertIn("LogFile=/var/snap/slurm/common/var/log/slurmdbd.log", configs)
-        self.assertNotIn("SlurmUser=slurm", configs)
+        config = self.manager.config.load()
+        self.assertEqual(config.storage_pass, "newpass")
+        self.assertEqual(config.log_file, "/var/snap/slurm/common/var/log/slurmdbd.log")
+        self.assertNotEqual(config.slurm_user, "slurm")
 
 
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
