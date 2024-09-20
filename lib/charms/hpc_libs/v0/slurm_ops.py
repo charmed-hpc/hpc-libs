@@ -152,10 +152,7 @@ def _systemctl(*args) -> str:
     Raises:
         SlurmOpsError: Raised if systemctl command fails.
     """
-    return _call(
-        "systemctl",
-        *args,
-    ).stdout
+    return _call("systemctl", *args).stdout
 
 
 def _mungectl(*args, stdin: Optional[str] = None) -> str:
