@@ -399,6 +399,11 @@ class _OpsManager(ABC):
     def etc_path(self) -> Path:
         """Get the path to the Slurm configuration directory."""
 
+    @property
+    @abstractmethod
+    def var_lib_path(self) -> Path:
+        """Get the path to the Slurm variable state data directory."""
+
     @abstractmethod
     def service_manager_for(self, type: _ServiceType) -> _ServiceManager:
         """Return the `ServiceManager` for the specified `ServiceType`."""
@@ -431,6 +436,11 @@ class _SnapManager(_OpsManager):
     def etc_path(self) -> Path:
         """Get the path to the Slurm configuration directory."""
         return Path("/var/snap/slurm/common/etc/slurm")
+
+    @property
+    def var_lib_path(self) -> Path:
+        """Get the path to the Slurm variable state data directory."""
+        return Path("/var/snap/slurm/common/var/lib/slurm")
 
     def service_manager_for(self, type: _ServiceType) -> _ServiceManager:
         """Return the `ServiceManager` for the specified `ServiceType`."""
@@ -586,6 +596,11 @@ class _AptManager(_OpsManager):
         """Get the path to the Slurm configuration directory."""
         return Path("/etc/slurm")
 
+    @property
+    def var_lib_path(self) -> Path:
+        """Get the path to the Slurm variable state data directory."""
+        return Path("/var/lib/slurm")
+
     def service_manager_for(self, type: _ServiceType) -> _ServiceManager:
         """Return the `ServiceManager` for the specified `ServiceType`."""
         return _SystemctlServiceManager(type)
@@ -604,20 +619,16 @@ class _JWTKeyManager:
         pass the `snap` bool as an argument to `__init__`
     """
 
-    def __init__(self, snap: bool = False):
-        self._keyfile_path = (
-            Path("/var/snap/slurm/common/var/lib/slurm/slurm.state/jwt_hs256.key")
-            if snap
-            else Path("/var/lib/slurm/slurm.state/jwt_hs256.key")
-        )
+    def __init__(self, keyfile: Path) -> None:
+        self._keyfile = keyfile
 
     def get(self) -> str:
         """Get the current jwt key."""
-        return self._keyfile_path.read_text()
+        return self._keyfile.read_text()
 
     def set(self, key: str) -> None:
         """Set a new jwt key."""
-        self._keyfile_path.write_text(key)
+        self._keyfile.write_text(key)
 
     def generate(self) -> None:
         """Generate a new, cryptographically secure jwt key."""
@@ -680,7 +691,7 @@ class _SlurmManagerBase:
         self._ops_manager = _SnapManager() if snap else _AptManager(service)
         self.service = self._ops_manager.service_manager_for(service)
         self.munge = _MungeManager(self._ops_manager)
-        self.jwt = _JWTKeyManager(snap)
+        self.jwt = _JWTKeyManager(self._ops_manager.var_lib_path / "slurm.data/jwt_hs256.key")
         self.exporter = _PrometheusExporterManager(self._ops_manager)
         self.install = self._ops_manager.install
         self.version = self._ops_manager.version

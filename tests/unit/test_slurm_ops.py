@@ -162,10 +162,10 @@ class SlurmOpsBase:
         self.setUpPyfakefs()
         self.fs.create_file("/var/snap/slurm/common/.env")
         self.fs.create_file("/var/snap/slurm/common/var/lib/slurm/slurm.state/jwt_hs256.key")
-        self.manager.jwt._keyfile_path = Path(
+        self.manager.jwt._keyfile = Path(
             "/var/snap/slurm/common/var/lib/slurm/slurm.state/jwt_hs256.key"
         )
-        self.manager.jwt._keyfile_path.write_text(JWT_KEY)
+        self.manager.jwt._keyfile.write_text(JWT_KEY)
 
     def test_config_name(self, *_) -> None:
         """Test that the config name is correctly set."""
