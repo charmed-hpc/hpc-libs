@@ -3,6 +3,7 @@ slurmutils ~= 0.7.0
 python-dotenv ~= 1.0.1
 pyyaml >= 6.0.2
 distro ~=1.9.0
+cryptography ~= 43.0.1
 
 # tests deps
 coverage[toml] ~= 7.6
