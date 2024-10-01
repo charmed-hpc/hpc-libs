@@ -418,9 +418,13 @@ class _SnapManager(_OpsManager):
 
     def install(self) -> None:
         """Install Slurm using the `slurm` snap."""
-        # FIXME: Pin slurm to the stable channel
+        # TODO: https://github.com/charmed-hpc/hpc-libs/issues/35 -
+        # Pin Slurm snap to stable channel.
         _snap("install", "slurm", "--channel", "latest/candidate", "--classic")
-        # FIXME: Request automatic alias for `mungectl` so that we don't need to do this manually
+        # TODO: https://github.com/charmed-hpc/slurm-snap/issues/49 -
+        # Request automatic alias for the Slurm snap so we don't need to do it here.
+        # We will possibly need to account for a third-party Slurm snap installation
+        # where aliasing is not automatically performed.
         _snap("alias", "slurm.mungectl", "mungectl")
 
     def version(self) -> str:
@@ -610,14 +614,12 @@ class _AptManager(_OpsManager):
         return _EnvManager(file=self._env_file, prefix=type.value)
 
 
+# TODO: https://github.com/charmed-hpc/hpc-libs/issues/36 -
+# Use `jwtctl` to provide backend for generating, setting, and getting
+# jwt signing key used by `slurmctld` and `slurmdbd`. This way we also
+# won't need to pass the keyfile path to the `__init__` constructor.
 class _JWTKeyManager:
-    """Control the JWT key used by Slurm.
-
-    Todo:
-        Use `jwtctl` to provide backend for generating, setting, and getting
-        JWT key used by `slurmctld` and `slurmrestd`. This way we won't need to
-        pass the `snap` bool as an argument to `__init__`
-    """
+    """Control the jwt signing key used by Slurm."""
 
     def __init__(self, keyfile: Path) -> None:
         self._keyfile = keyfile
