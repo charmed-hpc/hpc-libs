@@ -73,6 +73,8 @@ from typing import Any, Optional, Union
 import distro
 import dotenv
 import yaml
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from slurmutils.editors import cgroupconfig, slurmconfig, slurmdbdconfig
 from slurmutils.models import CgroupConfig, SlurmConfig, SlurmdbdConfig
 
@@ -96,7 +98,13 @@ LIBAPI = 0
 LIBPATCH = 7
 
 # Charm library dependencies to fetch during `charmcraft pack`.
-PYDEPS = ["pyyaml>=6.0.2", "python-dotenv~=1.0.1", "slurmutils~=0.7.0", "distro~=1.9.0"]
+PYDEPS = [
+    "cryptography~=43.0.1",
+    "pyyaml>=6.0.2",
+    "python-dotenv~=1.0.1",
+    "slurmutils~=0.7.0",
+    "distro~=1.9.0",
+]
 
 _logger = logging.getLogger(__name__)
 
@@ -549,6 +557,9 @@ class _AptManager(_OpsManager):
             raise SlurmOpsError(f"failed to install {self._service_name}. reason: {e}")
 
         self._env_file.touch(exist_ok=True)
+        # Debian package postinst hook does not create a `StateSaveLocation` directory
+        # so we make one here that is only r/w by owner.
+        Path("/var/lib/slurm/slurm.state").mkdir(mode=0o600, exist_ok=True)
 
         if self._service_name == "slurmd":
             override = Path("/etc/systemd/system/slurmd.service.d/10-slurmd-conf-server.conf")
@@ -582,6 +593,42 @@ class _AptManager(_OpsManager):
     def _env_manager_for(self, type: _ServiceType) -> _EnvManager:
         """Return the `_EnvManager` for the specified `ServiceType`."""
         return _EnvManager(file=self._env_file, prefix=type.value)
+
+
+class _JWTKeyManager:
+    """Control the JWT key used by Slurm.
+
+    Todo:
+        Use `jwtctl` to provide backend for generating, setting, and getting
+        JWT key used by `slurmctld` and `slurmrestd`. This way we won't need to
+        pass the `snap` bool as an argument to `__init__`
+    """
+
+    def __init__(self, snap: bool = False):
+        self._keyfile_path = (
+            Path("/var/snap/slurm/common/var/lib/slurm/slurm.state/jwt_hs256.key")
+            if snap
+            else Path("/var/lib/slurm/slurm.state/jwt_hs256.key")
+        )
+
+    def get(self) -> str:
+        """Get the current jwt key."""
+        return self._keyfile_path.read_text()
+
+    def set(self, key: str) -> None:
+        """Set a new jwt key."""
+        self._keyfile_path.write_text(key)
+
+    def generate(self) -> None:
+        """Generate a new, cryptographically secure jwt key."""
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.set(
+            key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption(),
+            ).decode()
+        )
 
 
 class _MungeKeyManager:
@@ -633,6 +680,7 @@ class _SlurmManagerBase:
         self._ops_manager = _SnapManager() if snap else _AptManager(service)
         self.service = self._ops_manager.service_manager_for(service)
         self.munge = _MungeManager(self._ops_manager)
+        self.jwt = _JWTKeyManager(snap)
         self.exporter = _PrometheusExporterManager(self._ops_manager)
         self.install = self._ops_manager.install
         self.version = self._ops_manager.version
