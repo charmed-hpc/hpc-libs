@@ -29,7 +29,7 @@ If you want to learn more about all the things you can do with the hpc-libs char
 or have any further questions on what you can do with the charm libraries, here are some
 further resources for you to explore:
 
-* [Open an issue](https://github.com/charmed-hpc/slurmutils/issues/new?title=ISSUE+TITLE&body=*Please+describe+your+issue*)
+* [Open an issue](https://github.com/charmed-hpc/hpc-libs/issues/new?title=ISSUE+TITLE&body=*Please+describe+your+issue*)
 * [Ask a question on Github](https://github.com/orgs/charmed-hpc/discussions/categories/q-a)
 
 ## 🛠️ Development
