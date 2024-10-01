@@ -25,6 +25,34 @@ from pyfakefs.fake_filesystem_unittest import TestCase as FsTestCase
 
 MUNGEKEY = b"1234567890"
 MUNGEKEY_BASE64 = base64.b64encode(MUNGEKEY)
+JWT_KEY = """-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEAt3PLWkwUOeckDwyMpHgGqmOZhitC8KfOQY/zPWfo+up5RQXz
+gVWqsTIt1RWynxIwCGeKYfVlhoKNDEDL1ZjYPcrrGBgMEC8ifqxkN4RC8bwwaGrJ
+9Zf0kknPHI5AJ9Fkv6EjgAZW1lwV0uEE5kf0wmlgfThXfzwwGVHVwemE1EgUzdI/
+rVxFP5Oe+mRM7kWdtXQrfizGhfmr8laCs+dgExpPa37mk7u/3LZfNXXSWYiaNtie
+vax5BxmI4bnTIXxdTT4VP9rMxG8nSspVj5NSWcplKUANlIkMKiO7k/CCD/YzRzM0
+0yZttiTvECG+rKy+KJd97dbtj6wSvbJ7cjfq2wIDAQABAoIBACNTfPkqZUqxI9Ry
+CjMxmbb97vZTJlTJO4KMgb51X/vRYwDToIxrPq9YhlLeFsNi8TTtG0y5wI8iXJ7b
+a2T6RcnAZX0CRHBpYy8Za0L1iR6bqoaw6asNU99Hr0ZEbj48qDXuhbOFhPtKSDmP
+cy4U9SDqwdXbH540rN5zT8JDgXyPAVJpwgsShk7rhgOFGIPIZqQoxEjPV3jr1sbk
+k7c39fJR6Kxywppn7flSmNX3v1LDu4NDIp0Llt1NlcKlbdy5XWEW9IbiIYi3JTpB
+kMpkFQFIuUyledeFyVFPsP8O7Da2rZS6Fb1dYNWzh3WkDRiAwYgTspiYiSf4AAi4
+TgrOmiECgYEA312O5bXqXOapU+S2yAFRTa8wkZ1iRR2E66NypZKVsv/vfe0bO+WQ
+kI6MRmTluvOKsKe3JulJZpjbl167gge45CHnFPZxEODAJN6OYp+Z4aOvTYBWQPpO
+A75AGSheL66PWe4d+ZGvxYCZB5vf4THAs8BsGlFK04RKL1vHADkUjHUCgYEA0kFh
+2ei/NP8ODrwygjrpjYSc2OSH9tBUoB7y5zIfLsXshb3Fn4pViF9vl01YkJJ57kki
+KQm7rgqCsFnKS4oUFbjDDFbo351m1e3XRbPAATIiqtJmtLoLoSWuhXpsCbneM5bB
+xLhFmm8RcFC6ORPBE2WMTGYzTEKydhImvUo+8A8CgYEAssWpyjaoRgSjP68Nj9Rm
+Izv1LoZ9kX3H1eUyrEw/Hk3ze6EbK/xXkStWID0/FTs5JJyHXVBX3BK5plQ+1Rqj
+I4vy7Hc2FWEcyCWMZmkA+3RLqUbvQgBUEnDh0oDZqWYX+802FnpA6V08nbdnH1D3
+v6Zhn0qzDcmSqobVJluJE8UCgYB93FO1/QSQtel1WqUlnhx28Z5um4bkcVtnKn+f
+dDqEZkiq2qn1UfrXksGbIdrVWEmTIcZIKKJnkbUf2fAl/fb99ccUmOX4DiIkB6co
++2wBi0CDX0XKA+C4S3VIQ7tuqwvfd+xwVRqdUsVupXSEfFXExbIRfdBRY0+vLDhy
+cYJxcwKBgQCK+dW+F0UJTQq1rDxfI0rt6yuRnhtSdAq2+HbXNx/0nwdLQg7SubWe
+1QnLcdjnBNxg0m3a7S15nyO2xehvB3rhGeWSfOrHYKJNX7IUqluVLJ+lIwgE2eAz
+94qOCvkFCP3pnm/MKN6/rezyOzrVJn7GbyDhcjElu+DD+WRLjfxiSw==
+-----END RSA PRIVATE KEY-----
+"""
 SLURM_INFO = """
 name:      slurm
 summary:   "Slurm: A Highly Scalable Workload Manager"
@@ -132,6 +160,9 @@ class SlurmOpsBase:
     def setUp(self):
         self.setUpPyfakefs()
         self.fs.create_file("/var/snap/slurm/common/.env")
+        self.fs.create_file(
+            "/var/snap/slurm/common/var/lib/slurm/slurm.state/jwt_hs256.key", contents=JWT_KEY
+        )
 
     def test_config_name(self, *_) -> None:
         """Test that the config name is correctly set."""
@@ -202,6 +233,20 @@ class SlurmOpsBase:
         """Test that manager is able to correctly configure munge."""
         self.manager.munge.max_thread_count = 24
         self.assertEqual(self.manager.munge.max_thread_count, 24)
+
+    def test_get_jwt_key(self, *_) -> None:
+        """Test that the jwt key is properly retrieved."""
+        self.assertEqual(self.manager.jwt.get(), JWT_KEY)
+
+    def test_set_jwt_key(self, *_) -> None:
+        """Test that the jwt key is set correctly."""
+        self.manager.jwt.set(JWT_KEY)
+        self.assertEqual(self.manager.jwt.get(), JWT_KEY)
+
+    def test_generate_jwt_key(self, *_) -> None:
+        """Test that the jwt key is properly generated."""
+        self.manager.jwt.generate()
+        self.assertNotEqual(self.manager.jwt.get(), JWT_KEY)
 
     @patch("charms.hpc_libs.v0.slurm_ops.socket.gethostname")
     def test_hostname(self, gethostname, *_) -> None:
