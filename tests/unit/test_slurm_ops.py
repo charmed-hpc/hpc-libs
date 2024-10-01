@@ -7,6 +7,7 @@
 import base64
 import subprocess
 import textwrap
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -160,9 +161,11 @@ class SlurmOpsBase:
     def setUp(self):
         self.setUpPyfakefs()
         self.fs.create_file("/var/snap/slurm/common/.env")
-        self.fs.create_file(
-            "/var/snap/slurm/common/var/lib/slurm/slurm.state/jwt_hs256.key", contents=JWT_KEY
+        self.fs.create_file("/var/snap/slurm/common/var/lib/slurm/slurm.state/jwt_hs256.key")
+        self.manager.jwt._keyfile_path = Path(
+            "/var/snap/slurm/common/var/lib/slurm/slurm.state/jwt_hs256.key"
         )
+        self.manager.jwt._keyfile_path.write_text(JWT_KEY)
 
     def test_config_name(self, *_) -> None:
         """Test that the config name is correctly set."""
