@@ -621,8 +621,8 @@ class _AptManager(_OpsManager):
 class _JWTKeyManager:
     """Control the jwt signing key used by Slurm."""
 
-    def __init__(self, keyfile: Path) -> None:
-        self._keyfile = keyfile
+    def __init__(self, ops_manager: _OpsManager) -> None:
+        self._keyfile = ops_manager.var_lib_path / "slurm.state/jwt_hs256.key"
 
     def get(self) -> str:
         """Get the current jwt key."""
@@ -693,7 +693,7 @@ class _SlurmManagerBase:
         self._ops_manager = _SnapManager() if snap else _AptManager(service)
         self.service = self._ops_manager.service_manager_for(service)
         self.munge = _MungeManager(self._ops_manager)
-        self.jwt = _JWTKeyManager(self._ops_manager.var_lib_path / "slurm.data/jwt_hs256.key")
+        self.jwt = _JWTKeyManager(self._ops_manager)
         self.exporter = _PrometheusExporterManager(self._ops_manager)
         self.install = self._ops_manager.install
         self.version = self._ops_manager.version
