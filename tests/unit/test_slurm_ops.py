@@ -5,6 +5,9 @@
 """Test slurm_ops library."""
 
 import base64
+import grp
+import os
+import pwd
 import subprocess
 import textwrap
 from pathlib import Path
@@ -162,9 +165,13 @@ class SlurmOpsBase:
         self.setUpPyfakefs()
         self.fs.create_file("/var/snap/slurm/common/.env")
         self.fs.create_file("/var/snap/slurm/common/var/lib/slurm/slurm.state/jwt_hs256.key")
+
+        # pyfakefs inconsistently mocks JWTKeyManager so manually mock instead.
         self.manager.jwt._keyfile = Path(
             "/var/snap/slurm/common/var/lib/slurm/slurm.state/jwt_hs256.key"
         )
+        self.manager.jwt._user = pwd.getpwuid(os.getuid()).pw_name
+        self.manager.jwt._group = grp.getgrgid(os.getgid()).gr_name
         self.manager.jwt._keyfile.write_text(JWT_KEY)
 
     def test_config_name(self, *_) -> None:
