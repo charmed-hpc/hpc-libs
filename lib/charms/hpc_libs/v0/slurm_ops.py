@@ -727,6 +727,8 @@ class _JWTKeyManager:
         )
 
 
+# TODO: https://github.com/charmed-hpc/mungectl/issues/5 -
+#  Have `mungectl` set user and group permissions on the munge.key file.
 class _MungeKeyManager:
     """Control the munge key via `mungectl ...` commands."""
 
