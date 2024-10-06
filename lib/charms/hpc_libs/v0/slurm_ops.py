@@ -60,6 +60,7 @@ __all__ = [
 
 import logging
 import os
+import shutil
 import socket
 import subprocess
 import textwrap
@@ -225,8 +226,10 @@ class _EnvManager:
 class _ConfigManager(ABC):
     """Control a Slurm configuration file."""
 
-    def __init__(self, config_path: Union[str, Path]) -> None:
+    def __init__(self, config_path: Union[str, Path], user: str, group: str) -> None:
         self._config_path = config_path
+        self._user = user
+        self._group = group
 
     @abstractmethod
     def load(self):
@@ -256,12 +259,14 @@ class _SlurmConfigManager(_ConfigManager):
 
     def dump(self, config: SlurmConfig) -> None:
         """Dump new configuration into `slurm.conf` configuration file."""
-        slurmconfig.dump(config, self._config_path)
+        slurmconfig.dump(config, self._config_path, mode=0o644, user=self._user, group=self._group)
 
     @contextmanager
     def edit(self) -> SlurmConfig:
         """Edit the current `slurm.conf` configuration file."""
-        with slurmconfig.edit(self._config_path) as config:
+        with slurmconfig.edit(
+            self._config_path, mode=0o644, user=self._user, group=self._group
+        ) as config:
             yield config
 
 
@@ -274,12 +279,16 @@ class _CgroupConfigManager(_ConfigManager):
 
     def dump(self, config: CgroupConfig) -> None:
         """Dump new configuration into `cgroup.conf` configuration file."""
-        cgroupconfig.dump(config, self._config_path)
+        cgroupconfig.dump(
+            config, self._config_path, mode=0o644, user=self._user, group=self._group
+        )
 
     @contextmanager
     def edit(self) -> CgroupConfig:
         """Edit the current `cgroup.conf` configuration file."""
-        with cgroupconfig.edit(self._config_path) as config:
+        with cgroupconfig.edit(
+            self._config_path, mode=0o644, user=self._user, group=self._group
+        ) as config:
             yield config
 
 
@@ -292,12 +301,16 @@ class _SlurmdbdConfigManager(_ConfigManager):
 
     def dump(self, config: SlurmdbdConfig) -> None:
         """Dump new configuration into `slurmdbd.conf` configuration file."""
-        slurmdbdconfig.dump(config, self._config_path)
+        slurmdbdconfig.dump(
+            config, self._config_path, mode=0o600, user=self._user, group=self._group
+        )
 
     @contextmanager
     def edit(self) -> SlurmdbdConfig:
         """Edit the current `slurmdbd.conf` configuration file."""
-        with slurmdbdconfig.edit(self._config_path) as config:
+        with slurmdbdconfig.edit(
+            self._config_path, mode=0o600, user=self._user, group=self._group
+        ) as config:
             yield config
 
 
@@ -419,12 +432,12 @@ class _SnapManager(_OpsManager):
     def install(self) -> None:
         """Install Slurm using the `slurm` snap."""
         # TODO: https://github.com/charmed-hpc/hpc-libs/issues/35 -
-        # Pin Slurm snap to stable channel.
+        #  Pin Slurm snap to stable channel.
         _snap("install", "slurm", "--channel", "latest/candidate", "--classic")
         # TODO: https://github.com/charmed-hpc/slurm-snap/issues/49 -
-        # Request automatic alias for the Slurm snap so we don't need to do it here.
-        # We will possibly need to account for a third-party Slurm snap installation
-        # where aliasing is not automatically performed.
+        #  Request automatic alias for the Slurm snap so we don't need to do it here.
+        #  We will possibly need to account for a third-party Slurm snap installation
+        #  where aliasing is not automatically performed.
         _snap("alias", "slurm.mungectl", "mungectl")
 
     def version(self) -> str:
@@ -588,6 +601,70 @@ class _AptManager(_OpsManager):
                 )
             )
 
+        if self._service_name == "slurmrestd":
+            # TODO: https://github.com/charmed-hpc/hpc-libs/issues/39 -
+            #   Make `slurmrestd` package postinst hook create the system user and group
+            #   so that we do not need to do it manually here.
+            try:
+                subprocess.check_output(["groupadd", "--gid", 64031, "slurmrestd"])
+            except subprocess.CalledProcessError as e:
+                if e.returncode == 9:
+                    _logger.debug("group 'slurmrestd' already exists")
+                else:
+                    raise SlurmOpsError(f"failed to create group 'slurmrestd'. reason: {e}")
+
+            try:
+                subprocess.check_output(
+                    [
+                        "adduser",
+                        "--system",
+                        "--gid",
+                        64031,
+                        "--uid",
+                        64031,
+                        "--no-create-home",
+                        "--home",
+                        "/nonexistent",
+                        "slurmrestd",
+                    ]
+                )
+            except subprocess.CalledProcessError as e:
+                if e.returncode == 9:
+                    _logger.debug("user 'slurmrestd' already exists")
+                else:
+                    raise SlurmOpsError(f"failed to create user 'slurmrestd'. reason: {e}")
+
+            _logger.debug("replacing default slurmrestd service file")
+            override = Path("/usr/lib/systemd/system/slurmrestd.service")
+            override.write_text(
+                textwrap.dedent(
+                    """
+                    [Unit]
+                    Description=Slurm REST daemon
+                    After=network.target munge.service slurmctld.service
+                    ConditionPathExists=/etc/slurm/slurm.conf
+                    Documentation=man:slurmrestd(8)
+
+                    [Service]
+                    Type=simple
+                    EnvironmentFile=-/etc/default/slurmrestd
+                    Environment="SLURM_JWT=daemon"
+                    ExecStart=/usr/sbin/slurmrestd $SLURMRESTD_OPTIONS -vv 0.0.0.0:6820
+                    ExecReload=/bin/kill -HUP $MAINPID
+                    User=slurmrestd
+                    Group=slurmrestd
+
+                    # Restart service if failed
+                    Restart=on-failure
+                    RestartSec=30s
+
+                    [Install]
+                    WantedBy=multi-user.target
+                    """
+                )
+            )
+            _systemctl("daemon-reload")
+
     def version(self) -> str:
         """Get the current version of Slurm installed on the system."""
         try:
@@ -615,14 +692,18 @@ class _AptManager(_OpsManager):
 
 
 # TODO: https://github.com/charmed-hpc/hpc-libs/issues/36 -
-# Use `jwtctl` to provide backend for generating, setting, and getting
-# jwt signing key used by `slurmctld` and `slurmdbd`. This way we also
-# won't need to pass the keyfile path to the `__init__` constructor.
+#  Use `jwtctl` to provide backend for generating, setting, and getting
+#  jwt signing key used by `slurmctld` and `slurmdbd`. This way we also
+#  won't need to pass the keyfile path to the `__init__` constructor.
+#  .
+#  Also, enable `jwtctl` to set the user and group for the keyfile.
 class _JWTKeyManager:
     """Control the jwt signing key used by Slurm."""
 
-    def __init__(self, ops_manager: _OpsManager) -> None:
+    def __init__(self, ops_manager: _OpsManager, user: str, group: str) -> None:
         self._keyfile = ops_manager.var_lib_path / "slurm.state/jwt_hs256.key"
+        self._user = user
+        self._group = group
 
     def get(self) -> str:
         """Get the current jwt key."""
@@ -631,6 +712,8 @@ class _JWTKeyManager:
     def set(self, key: str) -> None:
         """Set a new jwt key."""
         self._keyfile.write_text(key)
+        self._keyfile.chmod(0o600)
+        shutil.chown(self._keyfile, self._user, self._group)
 
     def generate(self) -> None:
         """Generate a new, cryptographically secure jwt key."""
@@ -693,10 +776,20 @@ class _SlurmManagerBase:
         self._ops_manager = _SnapManager() if snap else _AptManager(service)
         self.service = self._ops_manager.service_manager_for(service)
         self.munge = _MungeManager(self._ops_manager)
-        self.jwt = _JWTKeyManager(self._ops_manager)
+        self.jwt = _JWTKeyManager(self._ops_manager, self.user, self.group)
         self.exporter = _PrometheusExporterManager(self._ops_manager)
         self.install = self._ops_manager.install
         self.version = self._ops_manager.version
+
+    @property
+    def user(self) -> str:
+        """Get the user that managed service is running as."""
+        return "slurm"
+
+    @property
+    def group(self) -> str:
+        """Get the group that the managed service is running as."""
+        return "slurm"
 
     @property
     def hostname(self) -> str:
@@ -718,8 +811,12 @@ class SlurmctldManager(_SlurmManagerBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(service=_ServiceType.SLURMCTLD, *args, **kwargs)
-        self.config = _SlurmConfigManager(self._ops_manager.etc_path / "slurm.conf")
-        self.cgroup = _CgroupConfigManager(self._ops_manager.etc_path / "cgroup.conf")
+        self.config = _SlurmConfigManager(
+            self._ops_manager.etc_path / "slurm.conf", self.user, self.group
+        )
+        self.cgroup = _CgroupConfigManager(
+            self._ops_manager.etc_path / "cgroup.conf", self.user, self.group
+        )
 
 
 class SlurmdManager(_SlurmManagerBase):
@@ -734,6 +831,16 @@ class SlurmdManager(_SlurmManagerBase):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(service=_ServiceType.SLURMD, *args, **kwargs)
         self._env_manager = self._ops_manager._env_manager_for(_ServiceType.SLURMD)
+
+    @property
+    def user(self) -> str:
+        """Get the `SlurmdUser`."""
+        return "root"
+
+    @property
+    def group(self) -> str:
+        """Get the `SlurmdUser` group."""
+        return "root"
 
     @property
     def config_server(self) -> str:
@@ -756,7 +863,9 @@ class SlurmdbdManager(_SlurmManagerBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(service=_ServiceType.SLURMDBD, *args, **kwargs)
-        self.config = _SlurmdbdConfigManager(self._ops_manager.etc_path / "slurmdbd.conf")
+        self.config = _SlurmdbdConfigManager(
+            self._ops_manager.etc_path / "slurmdbd.conf", self.user, self.group
+        )
 
 
 class SlurmrestdManager(_SlurmManagerBase):
@@ -764,3 +873,16 @@ class SlurmrestdManager(_SlurmManagerBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(service=_ServiceType.SLURMRESTD, *args, **kwargs)
+        self.config = _SlurmConfigManager(
+            self._ops_manager.etc_path / "slurm.conf", user=self.user, group=self.group
+        )
+
+    @property
+    def user(self) -> str:
+        """Get the user that the slurmrestd service will run as."""
+        return "slurmrestd"
+
+    @property
+    def group(self):
+        """Get the group that the slurmrestd service will run as."""
+        return "slurmrestd"
