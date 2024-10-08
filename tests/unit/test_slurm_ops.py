@@ -519,6 +519,21 @@ class TestSlurmdbdConfig(FsTestCase):
         self.assertEqual(f_info.st_uid, FAKE_USER_UID)
         self.assertEqual(f_info.st_gid, FAKE_GROUP_GID)
 
+    def test_mysql_unix_port(self, *_) -> None:
+        """Test that `MYSQL_UNIX_PORT` is configured correctly."""
+        self.manager.mysql_unix_port = "/var/snap/charmed-mysql/common/run/mysqlrouter/mysql.sock"
+        self.assertEqual(
+            self.manager.mysql_unix_port,
+            "/var/snap/charmed-mysql/common/run/mysqlrouter/mysql.sock",
+        )
+        self.assertEqual(
+            dotenv.get_key("/var/snap/slurm/common/.env", "MYSQL_UNIX_PORT"),
+            "/var/snap/charmed-mysql/common/run/mysqlrouter/mysql.sock",
+        )
+
+        del self.manager.mysql_unix_port
+        self.assertIsNone(self.manager.mysql_unix_port)
+
 
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
 class TestSlurmdConfig(FsTestCase):
