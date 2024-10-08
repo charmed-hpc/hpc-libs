@@ -59,6 +59,12 @@ acts:
           apt install -y python3-venv python3-yaml
           python3 -m venv venv --system-site-packages
           venv/bin/python3 -m pip install -r dev-requirements.txt
+      - name: "Create slurm user"
+        run: |
+          groupadd --gid 64030 slurm
+          adduser \
+            --system --gid 64030 --uid 64030 \
+            --no-create-home --home /nonexistent slurm
       - name: "Run `slurm_ops` integration tests"
         run: |
           PYTHONPATH=./lib \
