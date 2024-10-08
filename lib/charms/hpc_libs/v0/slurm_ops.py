@@ -584,6 +584,34 @@ class _AptManager(_OpsManager):
                     [Service]
                     ExecStart=
                     ExecStart=/usr/bin/sh -c "/usr/sbin/slurmd -D -s $${SLURMD_CONFIG_SERVER:+--conf-server $$SLURMD_CONFIG_SERVER} $$SLURMD_OPTIONS"
+                    LimitNOFILE=1048576
+                    """
+                )
+            )
+        if self._service_name == "slurmctld":
+            override = Path("/etc/systemd/system/slurmctld.service.d/10-slurmctld-nofile.conf")
+            override.parent.mkdir(exist_ok=True, parents=True)
+            override.write_text(
+                textwrap.dedent(
+                    """
+                    [Service]
+                    LimitNOFILE=1048576
+                    """
+                )
+            )
+
+        # Add ulimit configuration for slurmctld and slurmd.
+        if self._service_name in ["slurmctld", "slurmd"]:
+            ulimit_charmed_hpc_conf = Path("/etc/security/limits.d/20-charmed-hpc-ulimit.conf")
+            ulimit_charmed_hpc_conf.write_text(
+                textwrap.dedent(
+                    """
+                    * soft nofile  1048576
+                    * hard nofile  1048576
+                    * soft memlock unlimited
+                    * hard memlock unlimited
+                    * soft stack unlimited
+                    * hard stack unlimited
                     """
                 )
             )
