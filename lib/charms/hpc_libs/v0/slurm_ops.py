@@ -198,29 +198,24 @@ class _ServiceType(Enum):
 class _EnvManager:
     """Control configuration of environment variables used in Slurm components.
 
-    Every configuration value is automatically uppercased and prefixed with the service name.
+    Every configuration value is automatically uppercased.
     """
 
-    def __init__(self, file: Union[str, os.PathLike], prefix: str) -> None:
+    def __init__(self, file: Union[str, os.PathLike]) -> None:
         self._file: Path = Path(file)
-        self._service = prefix
-
-    def _config_to_env_var(self, key: str) -> str:
-        """Get the environment variable corresponding to the configuration `key`."""
-        return self._service.replace("-", "_").upper() + "_" + key
 
     def get(self, key: str) -> Optional[str]:
         """Get specific environment variable for service."""
-        return dotenv.get_key(self._file, self._config_to_env_var(key))
+        return dotenv.get_key(self._file, key.upper())
 
     def set(self, config: Mapping[str, Any]) -> None:
         """Set environment variable for service."""
         for key, value in config.items():
-            dotenv.set_key(self._file, self._config_to_env_var(key), str(value))
+            dotenv.set_key(self._file, key.upper(), str(value))
 
     def unset(self, key: str) -> None:
         """Unset environment variable for service."""
-        dotenv.unset_key(self._file, self._config_to_env_var(key))
+        dotenv.unset_key(self._file, key.upper())
 
 
 class _ConfigManager(ABC):
@@ -422,7 +417,7 @@ class _OpsManager(ABC):
         """Return the `ServiceManager` for the specified `ServiceType`."""
 
     @abstractmethod
-    def _env_manager_for(self, type: _ServiceType) -> _EnvManager:
+    def env_manager_for(self, type: _ServiceType) -> _EnvManager:
         """Return the `_EnvManager` for the specified `ServiceType`."""
 
 
@@ -463,9 +458,9 @@ class _SnapManager(_OpsManager):
         """Return the `ServiceManager` for the specified `ServiceType`."""
         return _SnapServiceManager(type)
 
-    def _env_manager_for(self, type: _ServiceType) -> _EnvManager:
+    def env_manager_for(self, type: _ServiceType) -> _EnvManager:
         """Return the `_EnvManager` for the specified `ServiceType`."""
-        return _EnvManager(file="/var/snap/slurm/common/.env", prefix=type.value)
+        return _EnvManager(file="/var/snap/slurm/common/.env")
 
 
 class _AptManager(_OpsManager):
@@ -686,9 +681,9 @@ class _AptManager(_OpsManager):
         """Return the `ServiceManager` for the specified `ServiceType`."""
         return _SystemctlServiceManager(type)
 
-    def _env_manager_for(self, type: _ServiceType) -> _EnvManager:
+    def env_manager_for(self, type: _ServiceType) -> _EnvManager:
         """Return the `_EnvManager` for the specified `ServiceType`."""
-        return _EnvManager(file=self._env_file, prefix=type.value)
+        return _EnvManager(file=self._env_file)
 
 
 # TODO: https://github.com/charmed-hpc/hpc-libs/issues/36 -
@@ -832,7 +827,7 @@ class SlurmdManager(_SlurmManagerBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(service=_ServiceType.SLURMD, *args, **kwargs)
-        self._env_manager = self._ops_manager._env_manager_for(_ServiceType.SLURMD)
+        self._env_manager = self._ops_manager.env_manager_for(_ServiceType.SLURMD)
 
     @property
     def user(self) -> str:
@@ -847,17 +842,17 @@ class SlurmdManager(_SlurmManagerBase):
     @property
     def config_server(self) -> str:
         """Get the config server address of this Slurmd node."""
-        return self._env_manager.get("CONFIG_SERVER")
+        return self._env_manager.get("SLURMD_CONFIG_SERVER")
 
     @config_server.setter
     def config_server(self, addr: str) -> None:
         """Set the config server address of this Slurmd node."""
-        self._env_manager.set({"CONFIG_SERVER": addr})
+        self._env_manager.set({"SLURMD_CONFIG_SERVER": addr})
 
     @config_server.deleter
     def config_server(self) -> None:
         """Unset the config server address of this Slurmd node."""
-        self._env_manager.unset("CONFIG_SERVER")
+        self._env_manager.unset("SLURMD_CONFIG_SERVER")
 
 
 class SlurmdbdManager(_SlurmManagerBase):
@@ -865,9 +860,25 @@ class SlurmdbdManager(_SlurmManagerBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(service=_ServiceType.SLURMDBD, *args, **kwargs)
+        self._env_manager = self._ops_manager.env_manager_for(_ServiceType.SLURMDBD)
         self.config = _SlurmdbdConfigManager(
             self._ops_manager.etc_path / "slurmdbd.conf", self.user, self.group
         )
+
+    @property
+    def mysql_unix_port(self) -> str:
+        """Get the URI of the unix socket slurmdbd uses to communicate with MySQL."""
+        return self._env_manager.get("MYSQL_UNIX_PORT")
+
+    @mysql_unix_port.setter
+    def mysql_unix_port(self, socket_path: Union[str, os.PathLike]) -> None:
+        """Set the unix socket URI that slurmdbd will use to communicate with MySQL."""
+        self._env_manager.set({"MYSQL_UNIX_PORT": socket_path})
+
+    @mysql_unix_port.deleter
+    def mysql_unix_port(self) -> None:
+        """Delete the configured unix socket URI."""
+        self._env_manager.unset("MYSQL_UNIX_PORT")
 
 
 class SlurmrestdManager(_SlurmManagerBase):
