@@ -4,12 +4,11 @@
 
 """Test slurm_ops library."""
 
-import base64
 import grp
 import os
 import pwd
+import stat
 import subprocess
-import textwrap
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
@@ -27,8 +26,53 @@ from charms.hpc_libs.v0.slurm_ops import (
 )
 from pyfakefs.fake_filesystem_unittest import TestCase as FsTestCase
 
-MUNGEKEY = b"1234567890"
-MUNGEKEY_BASE64 = base64.b64encode(MUNGEKEY)
+FAKE_USER_UID = os.getuid()
+FAKE_USER_NAME = pwd.getpwuid(FAKE_USER_UID).pw_name
+FAKE_GROUP_GID = os.getgid()
+FAKE_GROUP_NAME = grp.getgrgid(FAKE_GROUP_GID).gr_name
+SNAP_SLURM_INFO = """
+name:      slurm
+summary:   "Slurm: A Highly Scalable Workload Manager"
+publisher: –
+store-url: https://snapcraft.io/slurm
+license:   Apache-2.0
+description: |
+    Slurm is an open source, fault-tolerant, and highly scalable cluster
+    management and job scheduling system for large and small Linux clusters.
+commands:
+    - slurm.command1
+    - slurm.command2
+services:
+    slurm.logrotate:                 oneshot, enabled, inactive
+    slurm.munged:                    simple, enabled, active
+    slurm.slurm-prometheus-exporter: simple, disabled, inactive
+    slurm.slurmctld:                 simple, disabled, active
+    slurm.slurmd:                    simple, enabled, active
+    slurm.slurmdbd:                  simple, disabled, active
+    slurm.slurmrestd:                simple, disabled, active
+channels:
+    latest/stable:    –
+    latest/candidate: 23.11.7 2024-06-26 (460) 114MB classic
+    latest/beta:      ↑
+    latest/edge:      23.11.7 2024-06-26 (459) 114MB classic
+installed:          23.11.7             (x1) 114MB classic
+"""
+SNAP_SLURM_INFO_NOT_INSTALLED = """
+name:      slurm
+summary:   "Slurm: A Highly Scalable Workload Manager"
+publisher: –
+store-url: https://snapcraft.io/slurm
+license:   Apache-2.0
+description: |
+    Slurm is an open source, fault-tolerant, and highly scalable cluster
+    management and job scheduling system for large and small Linux clusters.
+channels:
+    latest/stable:    –
+    latest/candidate: 23.11.7 2024-06-26 (460) 114MB classic
+    latest/beta:      ↑
+    latest/edge:      23.11.7 2024-06-26 (459) 114MB classic
+"""
+MUNGEKEY_BASE64 = b"MTIzNDU2Nzg5MA=="
 JWT_KEY = """-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEAt3PLWkwUOeckDwyMpHgGqmOZhitC8KfOQY/zPWfo+up5RQXz
 gVWqsTIt1RWynxIwCGeKYfVlhoKNDEDL1ZjYPcrrGBgMEC8ifqxkN4RC8bwwaGrJ
@@ -57,47 +101,97 @@ cYJxcwKBgQCK+dW+F0UJTQq1rDxfI0rt6yuRnhtSdAq2+HbXNx/0nwdLQg7SubWe
 94qOCvkFCP3pnm/MKN6/rezyOzrVJn7GbyDhcjElu+DD+WRLjfxiSw==
 -----END RSA PRIVATE KEY-----
 """
-SLURM_INFO = """
-name:      slurm
-summary:   "Slurm: A Highly Scalable Workload Manager"
-publisher: –
-store-url: https://snapcraft.io/slurm
-license:   Apache-2.0
-description: |
-    Slurm is an open source, fault-tolerant, and highly scalable cluster
-    management and job scheduling system for large and small Linux clusters.
-commands:
-    - slurm.command1
-    - slurm.command2
-services:
-    slurm.logrotate:                 oneshot, enabled, inactive
-    slurm.munged:                    simple, enabled, active
-    slurm.slurm-prometheus-exporter: simple, disabled, inactive
-    slurm.slurmctld:                 simple, disabled, active
-    slurm.slurmd:                    simple, enabled, active
-    slurm.slurmdbd:                  simple, disabled, active
-    slurm.slurmrestd:                simple, disabled, active
-channels:
-    latest/stable:    –
-    latest/candidate: 23.11.7 2024-06-26 (460) 114MB classic
-    latest/beta:      ↑
-    latest/edge:      23.11.7 2024-06-26 (459) 114MB classic
-installed:          23.11.7             (x1) 114MB classic
+EXAMPLE_SLURM_CONFIG = """#
+# `slurm.conf` file generated at 2024-01-30 17:18:36.171652 by slurmutils.
+#
+SlurmctldHost=juju-c9fc6f-0(10.152.28.20)
+SlurmctldHost=juju-c9fc6f-1(10.152.28.100)
+
+ClusterName=charmed-hpc
+AuthType=auth/munge
+Epilog=/usr/local/slurm/epilog
+Prolog=/usr/local/slurm/prolog
+FirstJobId=65536
+InactiveLimit=120
+JobCompType=jobcomp/filetxt
+JobCompLoc=/var/log/slurm/jobcomp
+KillWait=30
+MaxJobCount=10000
+MinJobAge=3600
+PluginDir=/usr/local/lib:/usr/local/slurm/lib
+ReturnToService=0
+SchedulerType=sched/backfill
+SlurmctldLogFile=/var/log/slurm/slurmctld.log
+SlurmdLogFile=/var/log/slurm/slurmd.log
+SlurmctldPort=7002
+SlurmdPort=7003
+SlurmdSpoolDir=/var/spool/slurmd.spool
+StateSaveLocation=/var/spool/slurm.state
+SwitchType=switch/none
+TmpFS=/tmp
+WaitTime=30
+
+#
+# Node configurations
+#
+NodeName=juju-c9fc6f-2 NodeAddr=10.152.28.48 CPUs=1 RealMemory=1000 TmpDisk=10000
+NodeName=juju-c9fc6f-3 NodeAddr=10.152.28.49 CPUs=1 RealMemory=1000 TmpDisk=10000
+NodeName=juju-c9fc6f-4 NodeAddr=10.152.28.50 CPUs=1 RealMemory=1000 TmpDisk=10000
+NodeName=juju-c9fc6f-5 NodeAddr=10.152.28.51 CPUs=1 RealMemory=1000 TmpDisk=10000
+
+#
+# Down node configurations
+#
+DownNodes=juju-c9fc6f-5 State=DOWN Reason="Maintenance Mode"
+
+#
+# Partition configurations
+#
+PartitionName=DEFAULT MaxTime=30 MaxNodes=10 State=UP
+PartitionName=batch Nodes=juju-c9fc6f-2,juju-c9fc6f-3,juju-c9fc6f-4,juju-c9fc6f-5 MinNodes=4 MaxTime=120 AllowGroups=admin
 """
-SLURM_INFO_NOT_INSTALLED = """
-name:      slurm
-summary:   "Slurm: A Highly Scalable Workload Manager"
-publisher: –
-store-url: https://snapcraft.io/slurm
-license:   Apache-2.0
-description: |
-    Slurm is an open source, fault-tolerant, and highly scalable cluster
-    management and job scheduling system for large and small Linux clusters.
-channels:
-    latest/stable:    –
-    latest/candidate: 23.11.7 2024-06-26 (460) 114MB classic
-    latest/beta:      ↑
-    latest/edge:      23.11.7 2024-06-26 (459) 114MB classic
+EXAMPLE_CGROUP_CONFIG = """#
+# `cgroup.conf` file generated at 2024-09-18 15:10:44.652017 by slurmutils.
+#
+ConstrainCores=yes
+ConstrainDevices=yes
+ConstrainRAMSpace=yes
+ConstrainSwapSpace=yes
+"""
+EXAMPLE_SLURMDBD_CONFIG = """#
+# `slurmdbd.conf` file generated at 2024-01-30 17:18:36.171652 by slurmutils.
+#
+ArchiveEvents=yes
+ArchiveJobs=yes
+ArchiveResvs=yes
+ArchiveSteps=no
+ArchiveTXN=no
+ArchiveUsage=no
+ArchiveScript=/usr/sbin/slurm.dbd.archive
+AuthInfo=/var/run/munge/munge.socket.2
+AuthType=auth/munge
+AuthAltTypes=auth/jwt
+AuthAltParameters=jwt_key=16549684561684@
+DbdHost=slurmdbd-0
+DbdBackupHost=slurmdbd-1
+DebugLevel=info
+PluginDir=/all/these/cool/plugins
+PurgeEventAfter=1month
+PurgeJobAfter=12month
+PurgeResvAfter=1month
+PurgeStepAfter=1month
+PurgeSuspendAfter=1month
+PurgeTXNAfter=12month
+PurgeUsageAfter=24month
+LogFile=/var/log/slurmdbd.log
+PidFile=/var/run/slurmdbd.pid
+SlurmUser=slurm
+StoragePass=supersecretpasswd
+StorageType=accounting_storage/mysql
+StorageUser=slurm
+StorageHost=127.0.0.1
+StoragePort=3306
+StorageLoc=slurm_acct_db
 """
 
 
@@ -131,7 +225,7 @@ class TestSnapPackageManager(FsTestCase):
 
     def test_version(self, subcmd) -> None:
         """Test that `slurm_ops` gets the correct version using the correct command."""
-        subcmd.return_value = subprocess.CompletedProcess([], returncode=0, stdout=SLURM_INFO)
+        subcmd.return_value = subprocess.CompletedProcess([], returncode=0, stdout=SNAP_SLURM_INFO)
         version = self.manager.version()
         args = subcmd.call_args[0][0]
         self.assertEqual(args, ["snap", "info", "slurm"])
@@ -140,7 +234,7 @@ class TestSnapPackageManager(FsTestCase):
     def test_version_not_installed(self, subcmd) -> None:
         """Test that `slurm_ops` throws when getting the installed version if the slurm snap is not installed."""
         subcmd.return_value = subprocess.CompletedProcess(
-            [], returncode=0, stdout=SLURM_INFO_NOT_INSTALLED
+            [], returncode=0, stdout=SNAP_SLURM_INFO_NOT_INSTALLED
         )
         with self.assertRaises(slurm.SlurmOpsError):
             self.manager.version()
@@ -166,12 +260,12 @@ class SlurmOpsBase:
         self.fs.create_file("/var/snap/slurm/common/.env")
         self.fs.create_file("/var/snap/slurm/common/var/lib/slurm/slurm.state/jwt_hs256.key")
 
-        # pyfakefs inconsistently mocks JWTKeyManager so manually mock instead.
+        # pyfakefs inconsistently mocks JWTKeyManager so fake instead.
         self.manager.jwt._keyfile = Path(
             "/var/snap/slurm/common/var/lib/slurm/slurm.state/jwt_hs256.key"
         )
-        self.manager.jwt._user = pwd.getpwuid(os.getuid()).pw_name
-        self.manager.jwt._group = grp.getgrgid(os.getgid()).gr_name
+        self.manager.jwt._user = FAKE_USER_NAME
+        self.manager.jwt._group = FAKE_GROUP_NAME
         self.manager.jwt._keyfile.write_text(JWT_KEY)
 
     def test_config_name(self, *_) -> None:
@@ -205,13 +299,13 @@ class SlurmOpsBase:
 
     def test_active(self, subcmd) -> None:
         """Test that the manager can detect that a service is active."""
-        subcmd.return_value = subprocess.CompletedProcess([], returncode=0, stdout=SLURM_INFO)
+        subcmd.return_value = subprocess.CompletedProcess([], returncode=0, stdout=SNAP_SLURM_INFO)
         self.assertTrue(self.manager.service.active())
 
     def test_active_not_installed(self, subcmd, *_) -> None:
         """Test that the manager throws an error when calling `active` if the snap is not installed."""
         subcmd.return_value = subprocess.CompletedProcess(
-            [], returncode=0, stdout=SLURM_INFO_NOT_INSTALLED
+            [], returncode=0, stdout=SNAP_SLURM_INFO_NOT_INSTALLED
         )
         with self.assertRaises(slurm.SlurmOpsError):
             self.manager.service.active()
@@ -296,70 +390,21 @@ for manager, config_name in parameters:
 class TestSlurmctldConfig(FsTestCase):
     """Test the Slurmctld service config manager."""
 
-    EXAMPLE_SLURM_CONF = textwrap.dedent(
-        """
-        #
-        # `slurm.conf` file generated at 2024-01-30 17:18:36.171652 by slurmutils.
-        #
-        SlurmctldHost=juju-c9fc6f-0(10.152.28.20)
-        SlurmctldHost=juju-c9fc6f-1(10.152.28.100)
-
-        ClusterName=charmed-hpc
-        AuthType=auth/munge
-        Epilog=/usr/local/slurm/epilog
-        Prolog=/usr/local/slurm/prolog
-        FirstJobId=65536
-        InactiveLimit=120
-        JobCompType=jobcomp/filetxt
-        JobCompLoc=/var/log/slurm/jobcomp
-        KillWait=30
-        MaxJobCount=10000
-        MinJobAge=3600
-        PluginDir=/usr/local/lib:/usr/local/slurm/lib
-        ReturnToService=0
-        SchedulerType=sched/backfill
-        SlurmctldLogFile=/var/log/slurm/slurmctld.log
-        SlurmdLogFile=/var/log/slurm/slurmd.log
-        SlurmctldPort=7002
-        SlurmdPort=7003
-        SlurmdSpoolDir=/var/spool/slurmd.spool
-        StateSaveLocation=/var/spool/slurm.state
-        SwitchType=switch/none
-        TmpFS=/tmp
-        WaitTime=30
-
-        #
-        # Node configurations
-        #
-        NodeName=juju-c9fc6f-2 NodeAddr=10.152.28.48 CPUs=1 RealMemory=1000 TmpDisk=10000
-        NodeName=juju-c9fc6f-3 NodeAddr=10.152.28.49 CPUs=1 RealMemory=1000 TmpDisk=10000
-        NodeName=juju-c9fc6f-4 NodeAddr=10.152.28.50 CPUs=1 RealMemory=1000 TmpDisk=10000
-        NodeName=juju-c9fc6f-5 NodeAddr=10.152.28.51 CPUs=1 RealMemory=1000 TmpDisk=10000
-
-        #
-        # Down node configurations
-        #
-        DownNodes=juju-c9fc6f-5 State=DOWN Reason="Maintenance Mode"
-
-        #
-        # Partition configurations
-        #
-        PartitionName=DEFAULT MaxTime=30 MaxNodes=10 State=UP
-        PartitionName=batch Nodes=juju-c9fc6f-2,juju-c9fc6f-3,juju-c9fc6f-4,juju-c9fc6f-5 MinNodes=4 MaxTime=120 AllowGroups=admin
-        """
-    ).strip()
-
     def setUp(self):
         self.manager = SlurmctldManager(snap=True)
         self.config_name = "slurm"
         self.setUpPyfakefs()
         self.fs.create_file("/var/snap/slurm/common/.env")
         self.fs.create_file(
-            "/var/snap/slurm/common/etc/slurm/slurm.conf", contents=self.EXAMPLE_SLURM_CONF
+            "/var/snap/slurm/common/etc/slurm/slurm.conf", contents=EXAMPLE_SLURM_CONFIG
         )
 
     def test_config(self, *_) -> None:
         """Test that the manager can manipulate the configuration file."""
+        # Fake user and group that owns `slurm.conf`.
+        self.manager.config._user = FAKE_USER_NAME
+        self.manager.config._group = FAKE_GROUP_NAME
+
         with self.manager.config.edit() as config:
             self.assertEqual(config.slurmd_log_file, "/var/log/slurm/slurmd.log")
             self.assertEqual(config.nodes["juju-c9fc6f-2"]["NodeAddr"], "10.152.28.48")
@@ -386,22 +431,16 @@ class TestSlurmctldConfig(FsTestCase):
         self.assertIn("NodeName=juju-c9fc6f-20 CPUs=1", config_content)
         self.assertIn('DownNodes=juju-c9fc6f-3 State=DOWN Reason="New nodes"', config_content)
 
+        # Ensure that permissions on file are correct.
+        f_info = Path("/var/snap/slurm/common/etc/slurm/slurm.conf").stat()
+        self.assertEqual(stat.filemode(f_info.st_mode), "-rw-r--r--")
+        self.assertEqual(f_info.st_uid, FAKE_USER_UID)
+        self.assertEqual(f_info.st_gid, FAKE_GROUP_GID)
+
 
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
 class TestCgroupConfig(FsTestCase):
     """Test the Slurmctld service cgroup config manager."""
-
-    EXAMPLE_CGROUP_CONF = textwrap.dedent(
-        """
-        #
-        # `cgroup.conf` file generated at 2024-09-18 15:10:44.652017 by slurmutils.
-        #
-        ConstrainCores=yes
-        ConstrainDevices=yes
-        ConstrainRAMSpace=yes
-        ConstrainSwapSpace=yes
-        """
-    ).strip()
 
     def setUp(self) -> None:
         self.manager = SlurmctldManager(snap=True)
@@ -409,11 +448,15 @@ class TestCgroupConfig(FsTestCase):
         self.setUpPyfakefs()
         self.fs.create_file("/var/snap/slurm/common/.env")
         self.fs.create_file(
-            "/var/snap/slurm/common/etc/slurm/cgroup.conf", contents=self.EXAMPLE_CGROUP_CONF
+            "/var/snap/slurm/common/etc/slurm/cgroup.conf", contents=EXAMPLE_CGROUP_CONFIG
         )
 
     def test_config(self, *_) -> None:
         """Test that manager can manipulate cgroup.conf configuration file."""
+        # Fake user and group that owns `cgroup.conf`.
+        self.manager.cgroup._user = FAKE_USER_NAME
+        self.manager.cgroup._group = FAKE_GROUP_NAME
+
         with self.manager.cgroup.edit() as config:
             self.assertEqual(config.constrain_cores, "yes")
             self.assertEqual(config.constrain_devices, "yes")
@@ -430,49 +473,16 @@ class TestCgroupConfig(FsTestCase):
         self.assertEqual(config.constrain_ram_space, "no")
         self.assertEqual(config.constrain_swap_space, "no")
 
+        # Ensure that permissions on file are correct.
+        f_info = Path("/var/snap/slurm/common/etc/slurm/cgroup.conf").stat()
+        self.assertEqual(stat.filemode(f_info.st_mode), "-rw-r--r--")
+        self.assertEqual(f_info.st_uid, FAKE_USER_UID)
+        self.assertEqual(f_info.st_gid, FAKE_GROUP_GID)
+
 
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
 class TestSlurmdbdConfig(FsTestCase):
     """Test the Slurmdbd service config manager."""
-
-    EXAMPLE_SLURMDBD_CONF = textwrap.dedent(
-        """
-        #
-        # `slurmdbd.conf` file generated at 2024-01-30 17:18:36.171652 by slurmutils.
-        #
-        ArchiveEvents=yes
-        ArchiveJobs=yes
-        ArchiveResvs=yes
-        ArchiveSteps=no
-        ArchiveTXN=no
-        ArchiveUsage=no
-        ArchiveScript=/usr/sbin/slurm.dbd.archive
-        AuthInfo=/var/run/munge/munge.socket.2
-        AuthType=auth/munge
-        AuthAltTypes=auth/jwt
-        AuthAltParameters=jwt_key=16549684561684@
-        DbdHost=slurmdbd-0
-        DbdBackupHost=slurmdbd-1
-        DebugLevel=info
-        PluginDir=/all/these/cool/plugins
-        PurgeEventAfter=1month
-        PurgeJobAfter=12month
-        PurgeResvAfter=1month
-        PurgeStepAfter=1month
-        PurgeSuspendAfter=1month
-        PurgeTXNAfter=12month
-        PurgeUsageAfter=24month
-        LogFile=/var/log/slurmdbd.log
-        PidFile=/var/run/slurmdbd.pid
-        SlurmUser=slurm
-        StoragePass=supersecretpasswd
-        StorageType=accounting_storage/mysql
-        StorageUser=slurm
-        StorageHost=127.0.0.1
-        StoragePort=3306
-        StorageLoc=slurm_acct_db
-        """
-    ).strip()
 
     def setUp(self):
         self.manager = SlurmdbdManager(snap=True)
@@ -480,11 +490,15 @@ class TestSlurmdbdConfig(FsTestCase):
         self.setUpPyfakefs()
         self.fs.create_file("/var/snap/slurm/common/.env")
         self.fs.create_file(
-            "/var/snap/slurm/common/etc/slurm/slurmdbd.conf", contents=self.EXAMPLE_SLURMDBD_CONF
+            "/var/snap/slurm/common/etc/slurm/slurmdbd.conf", contents=EXAMPLE_SLURMDBD_CONFIG
         )
 
     def test_config(self, *_) -> None:
         """Test that the manager can manipulate the configuration file."""
+        # Fake user and group that owns `slurmdbd.conf`.
+        self.manager.config._user = FAKE_USER_NAME
+        self.manager.config._group = FAKE_GROUP_NAME
+
         with self.manager.config.edit() as config:
             self.assertEqual(config.auth_type, "auth/munge")
             self.assertEqual(config.debug_level, "info")
@@ -498,6 +512,12 @@ class TestSlurmdbdConfig(FsTestCase):
         self.assertEqual(config.storage_pass, "newpass")
         self.assertEqual(config.log_file, "/var/snap/slurm/common/var/log/slurmdbd.log")
         self.assertNotEqual(config.slurm_user, "slurm")
+
+        # Ensure that permissions on file are correct.
+        f_info = Path("/var/snap/slurm/common/etc/slurm/slurmdbd.conf").stat()
+        self.assertEqual(stat.filemode(f_info.st_mode), "-rw-------")
+        self.assertEqual(f_info.st_uid, FAKE_USER_UID)
+        self.assertEqual(f_info.st_gid, FAKE_GROUP_GID)
 
 
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
