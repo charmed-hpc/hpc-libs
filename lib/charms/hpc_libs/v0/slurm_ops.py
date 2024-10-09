@@ -413,11 +413,11 @@ class _OpsManager(ABC):
         """Get the path to the Slurm variable state data directory."""
 
     @abstractmethod
-    def service_manager_for(self, type: _ServiceType) -> _ServiceManager:
+    def service_manager_for(self, service: _ServiceType) -> _ServiceManager:
         """Return the `ServiceManager` for the specified `ServiceType`."""
 
     @abstractmethod
-    def env_manager_for(self, type: _ServiceType) -> _EnvManager:
+    def env_manager_for(self, service: _ServiceType) -> _EnvManager:
         """Return the `_EnvManager` for the specified `ServiceType`."""
 
 
@@ -454,11 +454,11 @@ class _SnapManager(_OpsManager):
         """Get the path to the Slurm variable state data directory."""
         return Path("/var/snap/slurm/common/var/lib/slurm")
 
-    def service_manager_for(self, type: _ServiceType) -> _ServiceManager:
+    def service_manager_for(self, service: _ServiceType) -> _ServiceManager:
         """Return the `ServiceManager` for the specified `ServiceType`."""
-        return _SnapServiceManager(type)
+        return _SnapServiceManager(service)
 
-    def env_manager_for(self, type: _ServiceType) -> _EnvManager:
+    def env_manager_for(self, service: _ServiceType) -> _EnvManager:
         """Return the `_EnvManager` for the specified `ServiceType`."""
         return _EnvManager(file="/var/snap/slurm/common/.env")
 
@@ -677,11 +677,11 @@ class _AptManager(_OpsManager):
         """Get the path to the Slurm variable state data directory."""
         return Path("/var/lib/slurm")
 
-    def service_manager_for(self, type: _ServiceType) -> _ServiceManager:
+    def service_manager_for(self, service: _ServiceType) -> _ServiceManager:
         """Return the `ServiceManager` for the specified `ServiceType`."""
-        return _SystemctlServiceManager(type)
+        return _SystemctlServiceManager(service)
 
-    def env_manager_for(self, type: _ServiceType) -> _EnvManager:
+    def env_manager_for(self, service: _ServiceType) -> _EnvManager:
         """Return the `_EnvManager` for the specified `ServiceType`."""
         return _EnvManager(file=self._env_file)
 
