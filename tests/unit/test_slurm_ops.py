@@ -10,21 +10,21 @@ import pwd
 import stat
 import subprocess
 from pathlib import Path
-from unittest import TestCase
 from unittest.mock import patch
 
-import charms.hpc_libs.v0.slurm_ops as slurm
+import charms.operator_libs_linux.v0.apt as apt
 import dotenv
 from charms.hpc_libs.v0.slurm_ops import (
     SlurmctldManager,
     SlurmdbdManager,
     SlurmdManager,
     SlurmOpsError,
+    SlurmrestdManager,
     _ServiceType,
     _SlurmManagerBase,
     _SnapManager,
 )
-from pyfakefs.fake_filesystem_unittest import TestCase as FsTestCase
+from pyfakefs.fake_filesystem_unittest import TestCase
 
 FAKE_USER_UID = os.getuid()
 FAKE_USER_NAME = pwd.getpwuid(FAKE_USER_UID).pw_name
@@ -71,6 +71,21 @@ channels:
     latest/candidate: 23.11.7 2024-06-26 (460) 114MB classic
     latest/beta:      ↑
     latest/edge:      23.11.7 2024-06-26 (459) 114MB classic
+"""
+APT_SLURM_INFO = """Desired=Unknown/Install/Remove/Purge/Hold
+| Status=Not/Inst/Conf-files/Unpacked/halF-conf/Half-inst/trig-aWait/Trig-pend
+|/ Err?=(none)/Reinst-required (Status,Err: uppercase=bad)
+||/ Name           Version          Architecture Description
++++-==============-================-============-=================================
+ii  slurmctld      23.11.7-2ubuntu1 amd64        SLURM central management daemon
+"""
+ULIMIT_CONFIG = """
+* soft nofile  1048576
+* hard nofile  1048576
+* soft memlock unlimited
+* hard memlock unlimited
+* soft stack unlimited
+* hard stack unlimited
 """
 MUNGEKEY_BASE64 = b"MTIzNDU2Nzg5MA=="
 JWT_KEY = """-----BEGIN RSA PRIVATE KEY-----
@@ -199,7 +214,7 @@ StorageLoc=slurm_acct_db
     "charms.hpc_libs.v0.slurm_ops.subprocess.run",
     return_value=subprocess.CompletedProcess([], returncode=0),
 )
-class TestSlurmOps(TestCase):
+class TestSlurmOpsError(TestCase):
     def test_error_message(self, *_) -> None:
         """Test that `SlurmOpsError` stores the correct message."""
         message = "error message!"
@@ -210,10 +225,10 @@ class TestSlurmOps(TestCase):
     "charms.hpc_libs.v0.slurm_ops.subprocess.run",
     return_value=subprocess.CompletedProcess([], returncode=0),
 )
-class TestSnapPackageManager(FsTestCase):
+class TestSnapPackageManager(TestCase):
     def setUp(self):
-        self.manager = _SnapManager()
         self.setUpPyfakefs()
+        self.manager = _SnapManager()
         self.fs.create_file("/var/snap/slurm/common/.env")
 
     def test_install(self, subcmd) -> None:
@@ -236,7 +251,7 @@ class TestSnapPackageManager(FsTestCase):
         subcmd.return_value = subprocess.CompletedProcess(
             [], returncode=0, stdout=SNAP_SLURM_INFO_NOT_INSTALLED
         )
-        with self.assertRaises(slurm.SlurmOpsError):
+        with self.assertRaises(SlurmOpsError):
             self.manager.version()
         args = subcmd.call_args[0][0]
         self.assertEqual(args, ["snap", "info", "slurm"])
@@ -244,8 +259,157 @@ class TestSnapPackageManager(FsTestCase):
     def test_call_error(self, subcmd) -> None:
         """Test that `slurm_ops` propagates errors when a command fails."""
         subcmd.return_value = subprocess.CompletedProcess([], returncode=-1, stderr="error")
-        with self.assertRaises(slurm.SlurmOpsError):
+        with self.assertRaises(SlurmOpsError):
             self.manager.install()
+
+
+@patch(
+    "charms.hpc_libs.v0.slurm_ops.subprocess.run",
+    return_value=subprocess.CompletedProcess([], returncode=0),
+)
+class TestAptPackageManager(TestCase):
+    """Test the `_AptManager` Slurm operations manager."""
+
+    def setUp(self) -> None:
+        self.setUpPyfakefs()
+        self.slurmctld = SlurmctldManager(snap=False)
+        self.slurmd = SlurmdManager(snap=False)
+        self.slurmdbd = SlurmdbdManager(snap=False)
+        self.slurmrestd = SlurmrestdManager(snap=False)
+
+        self.fs.create_dir("/etc/default")
+        self.fs.create_dir("/etc/security/limits.d")
+        self.fs.create_dir("/etc/systemd/service/slurmctld.service.d")
+        self.fs.create_dir("/etc/systemd/service/slurmd.service.d")
+        self.fs.create_dir("/usr/lib/systemd/system")
+        self.fs.create_dir("/var/lib/slurm")
+
+    def test_version(self, subcmd) -> None:
+        """Test that `version` gets the correct package version number."""
+        subcmd.side_effect = [
+            subprocess.CompletedProcess([], returncode=0, stdout="amd64"),
+            subprocess.CompletedProcess([], returncode=0, stdout=APT_SLURM_INFO),
+        ]
+        version = self.slurmctld.version()
+        args = subcmd.call_args[0][0]
+        self.assertEqual(version, "23.11.7-2ubuntu1")
+        self.assertListEqual(args, ["dpkg", "-l", "slurmctld"])
+
+    def test_version_not_installed(self, subcmd) -> None:
+        """Test that `version` throws an error if Slurm service is not installed."""
+        subcmd.side_effect = [
+            subprocess.CompletedProcess([], returncode=0, stdout="amd64"),
+            subprocess.CompletedProcess([], returncode=1),
+        ]
+        with self.assertRaises(SlurmOpsError):
+            self.slurmctld.version()
+
+    @patch("charms.operator_libs_linux.v0.apt.DebianRepository._get_keyid_by_gpg_key")
+    @patch("charms.operator_libs_linux.v0.apt.DebianRepository._dearmor_gpg_key")
+    @patch("charms.operator_libs_linux.v0.apt.DebianRepository._write_apt_gpg_keyfile")
+    @patch("charms.operator_libs_linux.v0.apt.RepositoryMapping.add")
+    @patch("distro.codename")
+    def test_init_ubuntu_hpc_ppa(self, *_) -> None:
+        """Test that Ubuntu HPC repositories are initialized correctly."""
+        self.slurmctld._ops_manager._init_ubuntu_hpc_ppa()
+
+    @patch("charms.operator_libs_linux.v0.apt.DebianRepository._get_keyid_by_gpg_key")
+    @patch("charms.operator_libs_linux.v0.apt.DebianRepository._dearmor_gpg_key")
+    @patch("charms.operator_libs_linux.v0.apt.DebianRepository._write_apt_gpg_keyfile")
+    @patch("charms.operator_libs_linux.v0.apt.RepositoryMapping.add")
+    @patch("distro.codename")
+    @patch(
+        "charms.operator_libs_linux.v0.apt.update",
+        side_effect=subprocess.CalledProcessError(1, ["apt-get", "update", "--error-any"]),
+    )
+    def test_init_ubuntu_hpc_ppa_fail(self, *_) -> None:
+        """Test that error is correctly bubbled up if `apt update` fails."""
+        with self.assertRaises(SlurmOpsError):
+            self.slurmctld._ops_manager._init_ubuntu_hpc_ppa()
+
+    def test_set_ulimit(self, *_) -> None:
+        """Test that the correct slurmctld and slurmd ulimit rules are applied."""
+        self.slurmctld._ops_manager._set_ulimit()
+
+        target = Path("/etc/security/limits.d/20-charmed-hpc-openfile.conf")
+        self.assertEqual(ULIMIT_CONFIG, target.read_text())
+        f_info = target.stat()
+        self.assertEqual(stat.filemode(f_info.st_mode), "-rw-r--r--")
+
+    @patch("charms.operator_libs_linux.v0.apt.add_package")
+    def test_install_service(self, add_package, *_) -> None:
+        """Test that `_install_service` installs the correct packages for each service."""
+        # Install slurmctld.
+        self.slurmctld._ops_manager._install_service()
+        self.assertListEqual(
+            add_package.call_args[0][0],
+            ["slurmctld", "mungectl", "prometheus-slurm-exporter", "libpmix-dev", "mailutils"],
+        )
+
+        self.slurmd._ops_manager._install_service()
+        self.assertListEqual(
+            add_package.call_args[0][0],
+            ["slurmd", "mungectl", "prometheus-slurm-exporter", "libpmix-dev", "openmpi-bin"],
+        )
+
+        self.slurmdbd._ops_manager._install_service()
+        self.assertListEqual(
+            add_package.call_args[0][0],
+            ["slurmdbd", "mungectl", "prometheus-slurm-exporter"],
+        )
+
+        self.slurmrestd._ops_manager._install_service()
+        self.assertListEqual(
+            add_package.call_args[0][0],
+            ["slurmrestd", "mungectl", "prometheus-slurm-exporter"],
+        )
+
+        add_package.side_effect = apt.PackageError("failed to install packages!")
+        with self.assertRaises(SlurmOpsError):
+            self.slurmctld._ops_manager._install_service()
+
+    def test_apply_overrides(self, subcmd) -> None:
+        """Test that the correct overrides are applied based on the Slurm service installed."""
+        # Test overrides for slurmrestd first since it's easier to work with `call_args_list`
+        self.slurmrestd._ops_manager._apply_overrides()
+        groupadd = subcmd.call_args_list[0][0][0]
+        adduser = subcmd.call_args_list[1][0][0]
+        systemctl = subcmd.call_args_list[2][0][0]
+        self.assertListEqual(groupadd, ["groupadd", "--gid", 64031, "slurmrestd"])
+        self.assertListEqual(
+            adduser,
+            [
+                "adduser",
+                "--system",
+                "--group",
+                "--uid",
+                64031,
+                "--no-create-home",
+                "--home",
+                "/nonexistent",
+                "slurmrestd",
+            ],
+        )
+        self.assertListEqual(systemctl, ["systemctl", "daemon-reload"])
+
+        self.slurmctld._ops_manager._apply_overrides()
+        args = subcmd.call_args[0][0]
+        self.assertListEqual(args, ["systemctl", "daemon-reload"])
+
+        self.slurmd._ops_manager._apply_overrides()
+        self.assertListEqual(args, ["systemctl", "daemon-reload"])
+
+        self.slurmdbd._ops_manager._apply_overrides()
+        self.assertListEqual(args, ["systemctl", "daemon-reload"])
+
+    @patch("charms.hpc_libs.v0.slurm_ops._AptManager._init_ubuntu_hpc_ppa")
+    @patch("charms.hpc_libs.v0.slurm_ops._AptManager._install_service")
+    @patch("charms.hpc_libs.v0.slurm_ops._AptManager._apply_overrides")
+    def test_install(self, *_) -> None:
+        """Test public `install` method that encapsulates service install logic."""
+        self.slurmctld.install()
+        f_info = Path("/var/lib/slurm/slurm.state").stat()
+        self.assertEqual(stat.filemode(f_info.st_mode), "drw-------")
 
 
 @patch(
@@ -307,7 +471,7 @@ class SlurmOpsBase:
         subcmd.return_value = subprocess.CompletedProcess(
             [], returncode=0, stdout=SNAP_SLURM_INFO_NOT_INSTALLED
         )
-        with self.assertRaises(slurm.SlurmOpsError):
+        with self.assertRaises(SlurmOpsError):
             self.manager.service.active()
         args = subcmd.call_args[0][0]
         self.assertEqual(args, ["snap", "info", "slurm"])
@@ -378,7 +542,7 @@ for manager, config_name in parameters:
     cls_name = f"Test{manager.service.type.value.capitalize()}Ops"
     globals()[cls_name] = type(
         cls_name,
-        (SlurmOpsBase, FsTestCase),
+        (SlurmOpsBase, TestCase),
         {
             "manager": manager,
             "config_name": config_name,
@@ -387,13 +551,13 @@ for manager, config_name in parameters:
 
 
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
-class TestSlurmctldConfig(FsTestCase):
+class TestSlurmctldConfig(TestCase):
     """Test the Slurmctld service config manager."""
 
     def setUp(self):
+        self.setUpPyfakefs()
         self.manager = SlurmctldManager(snap=True)
         self.config_name = "slurm"
-        self.setUpPyfakefs()
         self.fs.create_file("/var/snap/slurm/common/.env")
         self.fs.create_file(
             "/var/snap/slurm/common/etc/slurm/slurm.conf", contents=EXAMPLE_SLURM_CONFIG
@@ -439,13 +603,13 @@ class TestSlurmctldConfig(FsTestCase):
 
 
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
-class TestCgroupConfig(FsTestCase):
+class TestCgroupConfig(TestCase):
     """Test the Slurmctld service cgroup config manager."""
 
     def setUp(self) -> None:
+        self.setUpPyfakefs()
         self.manager = SlurmctldManager(snap=True)
         self.config_name = "slurmctld"
-        self.setUpPyfakefs()
         self.fs.create_file("/var/snap/slurm/common/.env")
         self.fs.create_file(
             "/var/snap/slurm/common/etc/slurm/cgroup.conf", contents=EXAMPLE_CGROUP_CONFIG
@@ -481,7 +645,7 @@ class TestCgroupConfig(FsTestCase):
 
 
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
-class TestSlurmdbdConfig(FsTestCase):
+class TestSlurmdbdConfig(TestCase):
     """Test the Slurmdbd service config manager."""
 
     def setUp(self):
@@ -536,12 +700,12 @@ class TestSlurmdbdConfig(FsTestCase):
 
 
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
-class TestSlurmdConfig(FsTestCase):
+class TestSlurmdConfig(TestCase):
     """Test the Slurmd service config manager."""
 
     def setUp(self):
-        self.manager = SlurmdManager(snap=True)
         self.setUpPyfakefs()
+        self.manager = SlurmdManager(snap=True)
         self.fs.create_file("/var/snap/slurm/common/.env")
 
     def test_config(self, *_) -> None:
