@@ -478,6 +478,47 @@ class _AptManager(_OpsManager):
 
     def install(self) -> None:
         """Install Slurm using the `slurm` snap."""
+        self._init_ubuntu_hpc_ppa()
+        self._install_service()
+        # Debian package postinst hook does not create a `StateSaveLocation` directory
+        # so we make one here that is only r/w by owner.
+        _logger.debug("creating slurm statesavelocation directory")
+        Path("/var/lib/slurm/slurm.state").mkdir(mode=0o600, exist_ok=True)
+        self._apply_overrides()
+
+    def version(self) -> str:
+        """Get the current version of Slurm installed on the system."""
+        try:
+            return apt.DebianPackage.from_installed_package(self._service_name).version.number
+        except apt.PackageNotFoundError as e:
+            raise SlurmOpsError(f"unable to retrieve {self._service_name} version. reason: {e}")
+
+    @property
+    def etc_path(self) -> Path:
+        """Get the path to the Slurm configuration directory."""
+        return Path("/etc/slurm")
+
+    @property
+    def var_lib_path(self) -> Path:
+        """Get the path to the Slurm variable state data directory."""
+        return Path("/var/lib/slurm")
+
+    def service_manager_for(self, service: _ServiceType) -> _ServiceManager:
+        """Return the `ServiceManager` for the specified `ServiceType`."""
+        return _SystemctlServiceManager(service)
+
+    def env_manager_for(self, service: _ServiceType) -> _EnvManager:
+        """Return the `_EnvManager` for the specified `ServiceType`."""
+        return _EnvManager(file=f"/etc/default/{service.value}")
+
+    @staticmethod
+    def _init_ubuntu_hpc_ppa() -> None:
+        """Initialize `apt` to use Ubuntu HPC Debian package repositories.
+
+        Raises:
+            SlurmOpsError: Raised if `apt` fails to update with Ubuntu HPC repositories enabled.
+        """
+        _logger.debug("initializing apt to use ubuntu hpc debian package repositories")
         slurm_wlm = apt.DebianRepository(
             enabled=True,
             repotype="deb",
@@ -521,7 +562,6 @@ class _AptManager(_OpsManager):
                 """
             )
         )
-
         experimental = apt.DebianRepository(
             enabled=True,
             repotype="deb",
@@ -565,125 +605,180 @@ class _AptManager(_OpsManager):
                 """
             )
         )
-
         repositories = apt.RepositoryMapping()
         repositories.add(slurm_wlm)
         repositories.add(experimental)
 
         try:
             apt.update()
-            apt.add_package([self._service_name, "mungectl", "prometheus-slurm-exporter"])
-        except apt.PackageNotFoundError as e:
-            raise SlurmOpsError(f"failed to install {self._service_name}. reason: {e}")
-        except apt.PackageError as e:
-            raise SlurmOpsError(f"failed to install {self._service_name}. reason: {e}")
-
-        self._env_file.touch(exist_ok=True)
-        # Debian package postinst hook does not create a `StateSaveLocation` directory
-        # so we make one here that is only r/w by owner.
-        Path("/var/lib/slurm/slurm.state").mkdir(mode=0o600, exist_ok=True)
-
-        if self._service_name == "slurmd":
-            override = Path("/etc/systemd/system/slurmd.service.d/10-slurmd-conf-server.conf")
-            override.parent.mkdir(exist_ok=True, parents=True)
-            override.write_text(
-                textwrap.dedent(
-                    """
-                    [Service]
-                    ExecStart=
-                    ExecStart=/usr/bin/sh -c "/usr/sbin/slurmd -D -s $${SLURMD_CONFIG_SERVER:+--conf-server $$SLURMD_CONFIG_SERVER} $$SLURMD_OPTIONS"
-                    """
-                )
+        except subprocess.CalledProcessError as e:
+            raise SlurmOpsError(
+                f"failed to initialize apt to use ubuntu hpc repositories. reason: {e}"
             )
 
-        if self._service_name == "slurmrestd":
-            # TODO: https://github.com/charmed-hpc/hpc-libs/issues/39 -
-            #   Make `slurmrestd` package postinst hook create the system user and group
-            #   so that we do not need to do it manually here.
-            try:
-                subprocess.check_output(["groupadd", "--gid", 64031, "slurmrestd"])
-            except subprocess.CalledProcessError as e:
-                if e.returncode == 9:
-                    _logger.debug("group 'slurmrestd' already exists")
-                else:
-                    raise SlurmOpsError(f"failed to create group 'slurmrestd'. reason: {e}")
+    @staticmethod
+    def _set_ulimit() -> None:
+        """Set `ulimit` on nodes that need to be able to open many files at once."""
+        ulimit_config_file = Path("/etc/security/limits.d/20-charmed-hpc-openfile.conf")
+        ulimit_config = textwrap.dedent(
+            """
+            * soft nofile  1048576
+            * hard nofile  1048576
+            * soft memlock unlimited
+            * hard memlock unlimited
+            * soft stack unlimited
+            * hard stack unlimited
+            """
+        )
+        _logger.debug("setting ulimit configuration for node to:\n%s", ulimit_config)
+        ulimit_config_file.write_text(ulimit_config)
+        ulimit_config_file.chmod(0o644)
 
-            try:
-                subprocess.check_output(
-                    [
-                        "adduser",
-                        "--system",
-                        "--gid",
-                        64031,
-                        "--uid",
-                        64031,
-                        "--no-create-home",
-                        "--home",
-                        "/nonexistent",
-                        "slurmrestd",
-                    ]
+    def _install_service(self) -> None:
+        """Install Slurm service and other necessary packages.
+
+        Raises:
+            SlurmOpsError: Raised if `apt` fails to install the required Slurm packages.
+        """
+        packages = [self._service_name, "mungectl", "prometheus-slurm-exporter"]
+        match self._service_name:
+            case "slurmctld":
+                packages.extend(["libpmix-dev", "mailutils"])
+            case "slurmd":
+                packages.extend(["libpmix-dev", "openmpi-bin"])
+            case _:
+                _logger.debug(
+                    "'%s' does not require any additional packages to be installed",
+                    self._service_name,
                 )
-            except subprocess.CalledProcessError as e:
-                if e.returncode == 9:
-                    _logger.debug("user 'slurmrestd' already exists")
-                else:
-                    raise SlurmOpsError(f"failed to create user 'slurmrestd'. reason: {e}")
 
-            _logger.debug("replacing default slurmrestd service file")
-            override = Path("/usr/lib/systemd/system/slurmrestd.service")
-            override.write_text(
-                textwrap.dedent(
-                    """
-                    [Unit]
-                    Description=Slurm REST daemon
-                    After=network.target munge.service slurmctld.service
-                    ConditionPathExists=/etc/slurm/slurm.conf
-                    Documentation=man:slurmrestd(8)
-
-                    [Service]
-                    Type=simple
-                    EnvironmentFile=-/etc/default/slurmrestd
-                    Environment="SLURM_JWT=daemon"
-                    ExecStart=/usr/sbin/slurmrestd $SLURMRESTD_OPTIONS -vv 0.0.0.0:6820
-                    ExecReload=/bin/kill -HUP $MAINPID
-                    User=slurmrestd
-                    Group=slurmrestd
-
-                    # Restart service if failed
-                    Restart=on-failure
-                    RestartSec=30s
-
-                    [Install]
-                    WantedBy=multi-user.target
-                    """
-                )
-            )
-            _systemctl("daemon-reload")
-
-    def version(self) -> str:
-        """Get the current version of Slurm installed on the system."""
+        _logger.debug("installing packages %s with apt", packages)
         try:
-            return apt.DebianPackage.from_installed_package(self._service_name).version.number
-        except apt.PackageNotFoundError as e:
-            raise SlurmOpsError(f"unable to retrieve {self._service_name} version. reason: {e}")
+            apt.add_package(packages)
+        except (apt.PackageNotFoundError, apt.PackageError) as e:
+            raise SlurmOpsError(f"failed to install {self._service_name}. reason: {e}")
 
-    @property
-    def etc_path(self) -> Path:
-        """Get the path to the Slurm configuration directory."""
-        return Path("/etc/slurm")
+    def _apply_overrides(self) -> None:
+        """Override defaults supplied provided by Slurm Debian packages."""
+        match self._service_name:
+            case "slurmctld":
+                _logger.debug("overriding default slurmctld service configuration")
+                self._set_ulimit()
 
-    @property
-    def var_lib_path(self) -> Path:
-        """Get the path to the Slurm variable state data directory."""
-        return Path("/var/lib/slurm")
+                nofile_override = Path(
+                    "/etc/systemd/system/slurmctld.service.d/10-slurmctld-nofile.conf"
+                )
+                nofile_override.parent.mkdir(exist_ok=True, parents=True)
+                nofile_override.write_text(
+                    textwrap.dedent(
+                        """
+                        [Service]
+                        LimitMEMLOCK=infinity
+                        LimitNOFILE=1048576
+                        """
+                    )
+                )
+            case "slurmd":
+                _logger.debug("overriding default slurmd service configuration")
+                self._set_ulimit()
 
-    def service_manager_for(self, service: _ServiceType) -> _ServiceManager:
-        """Return the `ServiceManager` for the specified `ServiceType`."""
-        return _SystemctlServiceManager(service)
+                nofile_override = Path(
+                    "/etc/systemd/system/slurmctld.service.d/10-slurmd-nofile.conf"
+                )
+                nofile_override.parent.mkdir(exist_ok=True, parents=True)
+                nofile_override.write_text(
+                    textwrap.dedent(
+                        """
+                        [Service]
+                        LimitMEMLOCK=infinity
+                        LimitNOFILE=1048576
+                        """
+                    )
+                )
 
-    def env_manager_for(self, service: _ServiceType) -> _EnvManager:
-        """Return the `_EnvManager` for the specified `ServiceType`."""
-        return _EnvManager(file=self._env_file)
+                config_override = Path(
+                    "/etc/systemd/system/slurmd.service.d/20-slurmd-config-server.conf"
+                )
+                config_override.parent.mkdir(exist_ok=True, parents=True)
+                config_override.write_text(
+                    textwrap.dedent(
+                        """
+                        [Service]
+                        ExecStart=
+                        ExecStart=/usr/bin/sh -c "/usr/sbin/slurmd -D -s $${SLURMD_CONFIG_SERVER:+--conf-server $$SLURMD_CONFIG_SERVER} $$SLURMD_OPTIONS"
+                        """
+                    )
+                )
+            case "slurmrestd":
+                # TODO: https://github.com/charmed-hpc/hpc-libs/issues/39 -
+                #   Make `slurmrestd` package preinst hook create the system user and group
+                #   so that we do not need to do it manually here.
+                _logger.debug("creating slurmrestd user and group")
+                try:
+                    subprocess.check_output(["groupadd", "--gid", 64031, "slurmrestd"])
+                except subprocess.CalledProcessError as e:
+                    if e.returncode == 9:
+                        _logger.debug("group 'slurmrestd' already exists")
+                    else:
+                        raise SlurmOpsError(f"failed to create group 'slurmrestd'. reason: {e}")
+
+                try:
+                    subprocess.check_output(
+                        [
+                            "adduser",
+                            "--system",
+                            "--group",
+                            "--uid",
+                            64031,
+                            "--no-create-home",
+                            "--home",
+                            "/nonexistent",
+                            "slurmrestd",
+                        ]
+                    )
+                except subprocess.CalledProcessError as e:
+                    if e.returncode == 9:
+                        _logger.debug("user 'slurmrestd' already exists")
+                    else:
+                        raise SlurmOpsError(f"failed to create user 'slurmrestd'. reason: {e}")
+
+                # slurmrestd's preinst script does not create environment file.
+                _logger.debug("creating slurmrestd environment file")
+                Path("/etc/default/slurmrestd").touch(mode=0o644)
+
+                _logger.debug("overriding default slurmrestd service configuration")
+                config_override = Path("/usr/lib/systemd/system/slurmrestd.service")
+                config_override.write_text(
+                    textwrap.dedent(
+                        """
+                        [Unit]
+                        Description=Slurm REST daemon
+                        After=network.target munge.service slurmctld.service
+                        ConditionPathExists=/etc/slurm/slurm.conf
+                        Documentation=man:slurmrestd(8)
+
+                        [Service]
+                        Type=simple
+                        EnvironmentFile=-/etc/default/slurmrestd
+                        Environment="SLURM_JWT=daemon"
+                        ExecStart=/usr/sbin/slurmrestd $SLURMRESTD_OPTIONS -vv 0.0.0.0:6820
+                        ExecReload=/bin/kill -HUP $MAINPID
+                        User=slurmrestd
+                        Group=slurmrestd
+
+                        # Restart service if failed
+                        Restart=on-failure
+                        RestartSec=30s
+
+                        [Install]
+                        WantedBy=multi-user.target
+                        """
+                    )
+                )
+            case _:
+                _logger.debug("'%s' does not require any overrides", self._service_name)
+
+        _systemctl("daemon-reload")
 
 
 # TODO: https://github.com/charmed-hpc/hpc-libs/issues/36 -
