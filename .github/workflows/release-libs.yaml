@@ -25,7 +25,7 @@ jobs:
 
   release-to-charmhub:
     name: Release latest version of libraries to Charmhub
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - ci
     steps:
