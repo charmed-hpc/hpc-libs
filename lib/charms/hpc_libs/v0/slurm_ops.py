@@ -482,7 +482,7 @@ class _AptManager(_OpsManager):
         self._install_service()
         # Debian package postinst hook does not create a `StateSaveLocation` directory
         # so we make one here that is only r/w by owner.
-        _logger.debug("creating slurm statesavelocation directory")
+        _logger.debug("creating slurm `StateSaveLocation` directory")
         Path("/var/lib/slurm/slurm.state").mkdir(mode=0o600, exist_ok=True)
         self._apply_overrides()
 
