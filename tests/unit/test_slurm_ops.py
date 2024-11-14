@@ -343,25 +343,45 @@ class TestAptPackageManager(TestCase):
         self.slurmctld._ops_manager._install_service()
         self.assertListEqual(
             add_package.call_args[0][0],
-            ["slurmctld", "mungectl", "prometheus-slurm-exporter", "libpmix-dev", "mailutils"],
+            [
+                "slurmctld",
+                "munge",
+                "mungectl",
+                "prometheus-slurm-exporter",
+                "libpmix-dev",
+                "mailutils",
+            ],
         )
 
         self.slurmd._ops_manager._install_service()
         self.assertListEqual(
             add_package.call_args[0][0],
-            ["slurmd", "mungectl", "prometheus-slurm-exporter", "libpmix-dev", "openmpi-bin"],
+            [
+                "slurmd",
+                "munge",
+                "mungectl",
+                "prometheus-slurm-exporter",
+                "libpmix-dev",
+                "openmpi-bin",
+            ],
         )
 
         self.slurmdbd._ops_manager._install_service()
         self.assertListEqual(
             add_package.call_args[0][0],
-            ["slurmdbd", "mungectl", "prometheus-slurm-exporter"],
+            ["slurmdbd", "munge", "mungectl", "prometheus-slurm-exporter"],
         )
 
         self.slurmrestd._ops_manager._install_service()
         self.assertListEqual(
             add_package.call_args[0][0],
-            ["slurmrestd", "mungectl", "prometheus-slurm-exporter"],
+            [
+                "slurmrestd",
+                "munge",
+                "mungectl",
+                "prometheus-slurm-exporter",
+                "slurm-wlm-basic-plugins",
+            ],
         )
 
         add_package.side_effect = apt.PackageError("failed to install packages!")
@@ -375,7 +395,7 @@ class TestAptPackageManager(TestCase):
         groupadd = subcmd.call_args_list[0][0][0]
         adduser = subcmd.call_args_list[1][0][0]
         systemctl = subcmd.call_args_list[2][0][0]
-        self.assertListEqual(groupadd, ["groupadd", "--gid", 64031, "slurmrestd"])
+        self.assertListEqual(groupadd, ["groupadd", "--gid", "64031", "slurmrestd"])
         self.assertListEqual(
             adduser,
             [
@@ -383,7 +403,7 @@ class TestAptPackageManager(TestCase):
                 "--system",
                 "--group",
                 "--uid",
-                64031,
+                "64031",
                 "--no-create-home",
                 "--home",
                 "/nonexistent",
@@ -405,11 +425,14 @@ class TestAptPackageManager(TestCase):
     @patch("charms.hpc_libs.v0.slurm_ops._AptManager._init_ubuntu_hpc_ppa")
     @patch("charms.hpc_libs.v0.slurm_ops._AptManager._install_service")
     @patch("charms.hpc_libs.v0.slurm_ops._AptManager._apply_overrides")
+    @patch("shutil.chown")
     def test_install(self, *_) -> None:
         """Test public `install` method that encapsulates service install logic."""
         self.slurmctld.install()
-        f_info = Path("/var/lib/slurm/slurm.state").stat()
-        self.assertEqual(stat.filemode(f_info.st_mode), "drw-------")
+        f_info = Path("/var/lib/slurm").stat()
+        self.assertEqual(stat.filemode(f_info.st_mode), "drwxr-xr-x")
+        f_info = Path("/var/lib/slurm/checkpoint").stat()
+        self.assertEqual(stat.filemode(f_info.st_mode), "drwxr-xr-x")
 
 
 @patch(
