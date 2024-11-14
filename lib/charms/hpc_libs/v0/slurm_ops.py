@@ -480,10 +480,7 @@ class _AptManager(_OpsManager):
         """Install Slurm using the `slurm` snap."""
         self._init_ubuntu_hpc_ppa()
         self._install_service()
-        # Debian package postinst hook does not create a `StateSaveLocation` directory
-        # so we make one here that is only r/w by owner.
-        _logger.debug("creating slurm `StateSaveLocation` directory")
-        Path("/var/lib/slurm/slurm.state").mkdir(mode=0o600, exist_ok=True)
+        self._create_state_save_location()
         self._apply_overrides()
 
     def version(self) -> str:
@@ -658,6 +655,21 @@ class _AptManager(_OpsManager):
         except (apt.PackageNotFoundError, apt.PackageError) as e:
             raise SlurmOpsError(f"failed to install {self._service_name}. reason: {e}")
 
+    def _create_state_save_location(self) -> None:
+        """Create `StateSaveLocation` for Slurm services.
+
+        Notes:
+            `StateSaveLocation` is used by slurmctld, slurmd, and slurmdbd
+            to checkpoint runtime information should a service crash, and it
+            serves as the location where the JWT token used to generate user
+            access tokens is stored as well.
+        """
+        _logger.debug("creating slurm `StateSaveLocation` directory")
+        target = self.var_lib_path / "checkpoint"
+        target.mkdir(mode=0o755, parents=True, exist_ok=True)
+        shutil.chown(self.var_lib_path, "slurm", "slurm")
+        shutil.chown(target, "slurm", "slurm")
+
     def _apply_overrides(self) -> None:
         """Override defaults supplied provided by Slurm Debian packages."""
         match self._service_name:
@@ -791,7 +803,7 @@ class _JWTKeyManager:
     """Control the jwt signing key used by Slurm."""
 
     def __init__(self, ops_manager: _OpsManager, user: str, group: str) -> None:
-        self._keyfile = ops_manager.var_lib_path / "slurm.state/jwt_hs256.key"
+        self._keyfile = ops_manager.var_lib_path / "checkpoint/jwt_hs256.key"
         self._user = user
         self._group = group
 
