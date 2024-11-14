@@ -177,7 +177,7 @@ def _mungectl(*args, stdin: Optional[str] = None) -> str:
 class _ServiceType(Enum):
     """Type of Slurm service to manage."""
 
-    MUNGED = "munged"
+    MUNGE = "munge"
     PROMETHEUS_EXPORTER = "prometheus-slurm-exporter"
     SLURMD = "slurmd"
     SLURMCTLD = "slurmctld"
@@ -189,8 +189,6 @@ class _ServiceType(Enum):
         """Configuration name on the slurm snap for this service type."""
         if self is _ServiceType.SLURMCTLD:
             return "slurm"
-        if self is _ServiceType.MUNGED:
-            return "munge"
 
         return self.value
 
@@ -864,7 +862,7 @@ class _MungeManager:
     """Manage `munged` service operations."""
 
     def __init__(self, ops_manager: _OpsManager) -> None:
-        self.service = ops_manager.service_manager_for(_ServiceType.MUNGED)
+        self.service = ops_manager.service_manager_for(_ServiceType.MUNGE)
         self.key = _MungeKeyManager()
 
 
