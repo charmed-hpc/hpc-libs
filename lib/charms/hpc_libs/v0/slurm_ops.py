@@ -667,6 +667,7 @@ class _AptManager(_OpsManager):
         _logger.debug("creating slurm `StateSaveLocation` directory")
         target = self.var_lib_path / "checkpoint"
         target.mkdir(mode=0o755, parents=True, exist_ok=True)
+        self.var_lib_path.chmod(0o755)
         shutil.chown(self.var_lib_path, "slurm", "slurm")
         shutil.chown(target, "slurm", "slurm")
 
@@ -726,33 +727,30 @@ class _AptManager(_OpsManager):
                 #   Make `slurmrestd` package preinst hook create the system user and group
                 #   so that we do not need to do it manually here.
                 _logger.debug("creating slurmrestd user and group")
-                try:
-                    subprocess.check_output(["groupadd", "--gid", 64031, "slurmrestd"])
-                except subprocess.CalledProcessError as e:
-                    if e.returncode == 9:
-                        _logger.debug("group 'slurmrestd' already exists")
-                    else:
-                        raise SlurmOpsError(f"failed to create group 'slurmrestd'. reason: {e}")
+                result = _call("groupadd", "--gid", "64031", "slurmrestd", check=False)
+                if result.returncode == 9:
+                    _logger.debug("group 'slurmrestd' already exists")
+                elif result.returncode != 0:
+                    SlurmOpsError(f"failed to create group 'slurmrestd'. stderr: {result.stderr}")
 
-                try:
-                    subprocess.check_output(
-                        [
-                            "adduser",
-                            "--system",
-                            "--group",
-                            "--uid",
-                            64031,
-                            "--no-create-home",
-                            "--home",
-                            "/nonexistent",
-                            "slurmrestd",
-                        ]
+                result = _call(
+                    "adduser",
+                    "--system",
+                    "--group",
+                    "--uid",
+                    "64031",
+                    "--no-create-home",
+                    "--home",
+                    "/nonexistent",
+                    "slurmrestd",
+                    check=False,
+                )
+                if result.returncode == 9:
+                    _logger.debug("user 'slurmrestd' already exists")
+                elif result.returncode != 0:
+                    raise SlurmOpsError(
+                        f"failed to create user 'slurmrestd'. stderr: {result.stderr}"
                     )
-                except subprocess.CalledProcessError as e:
-                    if e.returncode == 9:
-                        _logger.debug("user 'slurmrestd' already exists")
-                    else:
-                        raise SlurmOpsError(f"failed to create user 'slurmrestd'. reason: {e}")
 
                 # slurmrestd's preinst script does not create environment file.
                 _logger.debug("creating slurmrestd environment file")
