@@ -635,10 +635,10 @@ class _AptManager(_OpsManager):
         Raises:
             SlurmOpsError: Raised if `apt` fails to install the required Slurm packages.
         """
-        packages = [self._service_name, "munge", "mungectl", "prometheus-slurm-exporter"]
+        packages = [self._service_name, "munge", "mungectl"]
         match self._service_name:
             case "slurmctld":
-                packages.extend(["libpmix-dev", "mailutils"])
+                packages.extend(["libpmix-dev", "mailutils", "prometheus-slurm-exporter"])
             case "slurmd":
                 packages.extend(["libpmix-dev", "openmpi-bin"])
             case "slurmrestd":
