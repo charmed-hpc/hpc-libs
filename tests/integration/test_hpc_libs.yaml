@@ -18,7 +18,7 @@ provider:
 acts:
   test-is-container:
     name: "Test the is_container library"
-    run-on: jammy
+    run-on: noble
     input:
       - host-path: lib
         path: lib
@@ -43,7 +43,7 @@ acts:
             is_container
   test-slurm-ops-snap:
     name: "Test the slurm_ops library (snap)"
-    run-on: jammy
+    run-on: noble
     input:
       - host-path: lib
         path: lib
@@ -76,7 +76,7 @@ acts:
             slurm_ops
   test-slurm-ops-apt:
     name: "Test the slurm_ops library (apt)"
-    run-on: jammy
+    run-on: noble
     input:
       - host-path: lib
         path: lib
