@@ -15,6 +15,7 @@ from unittest.mock import patch
 import charms.operator_libs_linux.v0.apt as apt
 import dotenv
 from charms.hpc_libs.v0.slurm_ops import (
+    SackdManager,
     SlurmctldManager,
     SlurmdbdManager,
     SlurmdManager,
@@ -293,6 +294,7 @@ class TestAptPackageManager(TestCase):
 
     def setUp(self) -> None:
         self.setUpPyfakefs()
+        self.sackd = SackdManager(snap=False)
         self.slurmctld = SlurmctldManager(snap=False)
         self.slurmd = SlurmdManager(snap=False)
         self.slurmdbd = SlurmdbdManager(snap=False)
@@ -360,7 +362,17 @@ class TestAptPackageManager(TestCase):
     @patch("charms.operator_libs_linux.v0.apt.add_package")
     def test_install_service(self, add_package, *_) -> None:
         """Test that `_install_service` installs the correct packages for each service."""
-        # Install slurmctld.
+        self.sackd._ops_manager._install_service()
+        self.assertListEqual(
+            add_package.call_args[0][0],
+            [
+                "sackd",
+                "munge",
+                "mungectl",
+                "slurm-client",
+            ],
+        )
+
         self.slurmctld._ops_manager._install_service()
         self.assertListEqual(
             add_package.call_args[0][0],
@@ -368,9 +380,9 @@ class TestAptPackageManager(TestCase):
                 "slurmctld",
                 "munge",
                 "mungectl",
-                "prometheus-slurm-exporter",
                 "libpmix-dev",
                 "mailutils",
+                "prometheus-slurm-exporter",
             ],
         )
 
@@ -381,7 +393,6 @@ class TestAptPackageManager(TestCase):
                 "slurmd",
                 "munge",
                 "mungectl",
-                "prometheus-slurm-exporter",
                 "libpmix-dev",
                 "openmpi-bin",
             ],
@@ -390,7 +401,7 @@ class TestAptPackageManager(TestCase):
         self.slurmdbd._ops_manager._install_service()
         self.assertListEqual(
             add_package.call_args[0][0],
-            ["slurmdbd", "munge", "mungectl", "prometheus-slurm-exporter"],
+            ["slurmdbd", "munge", "mungectl"],
         )
 
         self.slurmrestd._ops_manager._install_service()
@@ -400,7 +411,6 @@ class TestAptPackageManager(TestCase):
                 "slurmrestd",
                 "munge",
                 "mungectl",
-                "prometheus-slurm-exporter",
                 "slurm-wlm-basic-plugins",
             ],
         )
@@ -592,6 +602,24 @@ for manager, config_name in parameters:
             "config_name": config_name,
         },
     )
+
+
+@patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
+class TestSackdConfig(TestCase):
+    """Test the `sackd` service configuration manager."""
+
+    def setUp(self):
+        self.setUpPyfakefs()
+        self.manager = SackdManager(snap=False)
+        self.fs.create_file("/etc/default/sackd")
+
+    def test_config_server(self, *_) -> None:
+        """Test that `SACKD_CONFIG_SERVER` is configured correctly."""
+        self.manager.config_server = "localhost"
+        self.assertEqual(self.manager.config_server, "localhost")
+        self.assertEqual(dotenv.get_key("/etc/default/sackd", "SACKD_CONFIG_SERVER"), "localhost")
+        del self.manager.config_server
+        self.assertIsNone(self.manager.config_server)
 
 
 @patch("charms.hpc_libs.v0.slurm_ops.subprocess.run")
