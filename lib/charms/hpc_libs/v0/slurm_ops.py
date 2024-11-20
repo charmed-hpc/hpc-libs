@@ -51,6 +51,7 @@ class ApplicationCharm(CharmBase):
 """
 
 __all__ = [
+    "SackdManager",
     "SlurmOpsError",
     "SlurmctldManager",
     "SlurmdManager",
@@ -179,6 +180,7 @@ class _ServiceType(Enum):
 
     MUNGE = "munge"
     PROMETHEUS_EXPORTER = "prometheus-slurm-exporter"
+    SACKD = "sackd"
     SLURMD = "slurmd"
     SLURMCTLD = "slurmctld"
     SLURMDBD = "slurmdbd"
@@ -425,12 +427,12 @@ class _SnapManager(_OpsManager):
     def install(self) -> None:
         """Install Slurm using the `slurm` snap."""
         # TODO: https://github.com/charmed-hpc/hpc-libs/issues/35 -
-        #  Pin Slurm snap to stable channel.
+        #   Pin Slurm snap to stable channel.
         _snap("install", "slurm", "--channel", "latest/candidate", "--classic")
         # TODO: https://github.com/charmed-hpc/slurm-snap/issues/49 -
-        #  Request automatic alias for the Slurm snap so we don't need to do it here.
-        #  We will possibly need to account for a third-party Slurm snap installation
-        #  where aliasing is not automatically performed.
+        #   Request automatic alias for the Slurm snap so we don't need to do it here.
+        #   We will possibly need to account for a third-party Slurm snap installation
+        #   where aliasing is not automatically performed.
         _snap("alias", "slurm.mungectl", "mungectl")
 
     def version(self) -> str:
@@ -514,49 +516,6 @@ class _AptManager(_OpsManager):
             SlurmOpsError: Raised if `apt` fails to update with Ubuntu HPC repositories enabled.
         """
         _logger.debug("initializing apt to use ubuntu hpc debian package repositories")
-        slurm_wlm = apt.DebianRepository(
-            enabled=True,
-            repotype="deb",
-            uri="https://ppa.launchpadcontent.net/ubuntu-hpc/slurm-wlm-23.02/ubuntu",
-            release=distro.codename(),
-            groups=["main"],
-        )
-        slurm_wlm.import_key(
-            textwrap.dedent(
-                """
-                -----BEGIN PGP PUBLIC KEY BLOCK-----
-                Comment: Hostname:
-                Version: Hockeypuck 2.2
-
-                xsFNBGTuZb8BEACtJ1CnZe6/hv84DceHv+a54y3Pqq0gqED0xhTKnbj/E2ByJpmT
-                NlDNkpeITwPAAN1e3824Me76Qn31RkogTMoPJ2o2XfG253RXd67MPxYhfKTJcnM3
-                CEkmeI4u2Lynh3O6RQ08nAFS2AGTeFVFH2GPNWrfOsGZW03Jas85TZ0k7LXVHiBs
-                W6qonbsFJhshvwC3SryG4XYT+z/+35x5fus4rPtMrrEOD65hij7EtQNaE8owuAju
-                Kcd0m2b+crMXNcllWFWmYMV0VjksQvYD7jwGrWeKs+EeHgU8ZuqaIP4pYHvoQjag
-                umqnH9Qsaq5NAXiuAIAGDIIV4RdAfQIR4opGaVgIFJdvoSwYe3oh2JlrLPBlyxyY
-                dayDifd3X8jxq6/oAuyH1h5K/QLs46jLSR8fUbG98SCHlRmvozTuWGk+e07ALtGe
-                sGv78ToHKwoM2buXaTTHMwYwu7Rx8LZ4bZPHdersN1VW/m9yn1n5hMzwbFKy2s6/
-                D4Q2ZBsqlN+5aW2q0IUmO+m0GhcdaDv8U7RVto1cWWPr50HhiCi7Yvei1qZiD9jq
-                57oYZVqTUNCTPxi6NeTOdEc+YqNynWNArx4PHh38LT0bqKtlZCGHNfoAJLPVYhbB
-                b2AHj9edYtHU9AAFSIy+HstET6P0UDxy02IeyE2yxoUBqdlXyv6FL44E+wARAQAB
-                zRxMYXVuY2hwYWQgUFBBIGZvciBVYnVudHUgSFBDwsGOBBMBCgA4FiEErocSHcPk
-                oLD4H/Aj9tDF1ca+s3sFAmTuZb8CGwMFCwkIBwIGFQoJCAsCBBYCAwECHgECF4AA
-                CgkQ9tDF1ca+s3sz3w//RNawsgydrutcbKf0yphDhzWS53wgfrs2KF1KgB0u/H+u
-                6Kn2C6jrVM0vuY4NKpbEPCduOj21pTCepL6PoCLv++tICOLVok5wY7Zn3WQFq0js
-                Iy1wO5t3kA1cTD/05v/qQVBGZ2j4DsJo33iMcQS5AjHvSr0nu7XSvDDEE3cQE55D
-                87vL7lgGjuTOikPh5FpCoS1gpemBfwm2Lbm4P8vGOA4/witRjGgfC1fv1idUnZLM
-                TbGrDlhVie8pX2kgB6yTYbJ3P3kpC1ZPpXSRWO/cQ8xoYpLBTXOOtqwZZUnxyzHh
-                gM+hv42vPTOnCo+apD97/VArsp59pDqEVoAtMTk72fdBqR+BB77g2hBkKESgQIEq
-                EiE1/TOISioMkE0AuUdaJ2ebyQXugSHHuBaqbEC47v8t5DVN5Qr9OriuzCuSDNFn
-                6SBHpahN9ZNi9w0A/Yh1+lFfpkVw2t04Q2LNuupqOpW+h3/62AeUqjUIAIrmfeML
-                IDRE2VdquYdIXKuhNvfpJYGdyvx/wAbiAeBWg0uPSepwTfTG59VPQmj0FtalkMnN
-                ya2212K5q68O5eXOfCnGeMvqIXxqzpdukxSZnLkgk40uFJnJVESd/CxHquqHPUDE
-                fy6i2AnB3kUI27D4HY2YSlXLSRbjiSxTfVwNCzDsIh7Czefsm6ITK2+cVWs0hNQ=
-                =cs1s
-                -----END PGP PUBLIC KEY BLOCK-----
-                """
-            )
-        )
         experimental = apt.DebianRepository(
             enabled=True,
             repotype="deb",
@@ -601,7 +560,6 @@ class _AptManager(_OpsManager):
             )
         )
         repositories = apt.RepositoryMapping()
-        repositories.add(slurm_wlm)
         repositories.add(experimental)
 
         try:
@@ -637,6 +595,8 @@ class _AptManager(_OpsManager):
         """
         packages = [self._service_name, "munge", "mungectl"]
         match self._service_name:
+            case "sackd":
+                packages.extend(["slurm-client"])
             case "slurmctld":
                 packages.extend(["libpmix-dev", "mailutils", "prometheus-slurm-exporter"])
             case "slurmd":
@@ -674,6 +634,28 @@ class _AptManager(_OpsManager):
     def _apply_overrides(self) -> None:
         """Override defaults supplied provided by Slurm Debian packages."""
         match self._service_name:
+            case "sackd":
+                _logger.debug("overriding default sackd service configuration")
+                config_override = Path(
+                    "/etc/systemd/system/sackd.service.d/10-sackd-config-server.conf"
+                )
+                config_override.mkdir(parents=True, exist_ok=True)
+                config_override.write_text(
+                    textwrap.dedent(
+                        """
+                        [Service]
+                        ExecStart=
+                        ExecStart=/usr/bin/sh -c "/usr/sbin/sackd --systemd $${SACKD_CONFIG_SERVER:+--conf-server $$SACKD_CONFIG_SERVER} $$SACKD_OPTIONS"
+                        """
+                    )
+                )
+
+                # TODO: https://github.com/charmed-hpc/hpc-libs/issues/54 -
+                #   Make `sackd` create its service environment file so that we
+                #   aren't required to manually create it here.
+                _logger.debug("creating sackd environment file")
+                self._env_file.touch(mode=0o644)
+                dotenv.set_key(self._env_file, "SACKD_OPTIONS", "")
             case "slurmctld":
                 _logger.debug("overriding default slurmctld service configuration")
                 self._set_ulimit()
@@ -792,11 +774,11 @@ class _AptManager(_OpsManager):
 
 
 # TODO: https://github.com/charmed-hpc/hpc-libs/issues/36 -
-#  Use `jwtctl` to provide backend for generating, setting, and getting
-#  jwt signing key used by `slurmctld` and `slurmdbd`. This way we also
-#  won't need to pass the keyfile path to the `__init__` constructor.
-#  .
-#  Also, enable `jwtctl` to set the user and group for the keyfile.
+#   Use `jwtctl` to provide backend for generating, setting, and getting
+#   jwt signing key used by `slurmctld` and `slurmdbd`. This way we also
+#   won't need to pass the keyfile path to the `__init__` constructor.
+#   .
+#   Also, enable `jwtctl` to set the user and group for the keyfile.
 class _JWTKeyManager:
     """Control the jwt signing key used by Slurm."""
 
@@ -828,7 +810,7 @@ class _JWTKeyManager:
 
 
 # TODO: https://github.com/charmed-hpc/mungectl/issues/5 -
-#  Have `mungectl` set user and group permissions on the munge.key file.
+#   Have `mungectl` set user and group permissions on the munge.key file.
 class _MungeKeyManager:
     """Control the munge key via `mungectl ...` commands."""
 
@@ -906,6 +888,29 @@ class _SlurmManagerBase:
             SlurmOpsError: Raised if scontrol command fails.
         """
         return _call("scontrol", *args).stdout
+
+
+class SackdManager(_SlurmManagerBase):
+    """Manager for the Sackd service."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(service=_ServiceType.SACKD, *args, **kwargs)
+        self._env_manager = self._ops_manager.env_manager_for(_ServiceType.SACKD)
+
+    @property
+    def config_server(self) -> str:
+        """Get the config server address of this Sackd node."""
+        return self._env_manager.get("SACKD_CONFIG_SERVER")
+
+    @config_server.setter
+    def config_server(self, addr: str) -> None:
+        """Set the config server address of this Sackd node."""
+        self._env_manager.set({"SACKD_CONFIG_SERVER": addr})
+
+    @config_server.deleter
+    def config_server(self) -> None:
+        """Unset the config server address of this Sackd node."""
+        self._env_manager.unset("SACKD_CONFIG_SERVER")
 
 
 class SlurmctldManager(_SlurmManagerBase):
