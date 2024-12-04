@@ -165,6 +165,27 @@ DownNodes=juju-c9fc6f-5 State=DOWN Reason="Maintenance Mode"
 PartitionName=DEFAULT MaxTime=30 MaxNodes=10 State=UP
 PartitionName=batch Nodes=juju-c9fc6f-2,juju-c9fc6f-3,juju-c9fc6f-4,juju-c9fc6f-5 MinNodes=4 MaxTime=120 AllowGroups=admin
 """
+EXAMPLE_ACCT_GATHER_CONFIG = """#
+# `acct_gather.conf` file generated at 2024-09-18 15:10:44.652017 by slurmutils.
+#
+EnergyIPMIFrequency=1
+EnergyIPMICalcAdjustment=yes
+EnergyIPMIPowerSensors=Node=16,19;Socket1=19,26;KNC=16,19
+EnergyIPMIUsername=testipmiusername
+EnergyIPMIPassword=testipmipassword
+EnergyIPMITimeout=10
+ProfileHDF5Dir=/mydir
+ProfileHDF5Default=ALL
+ProfileInfluxDBDatabase=acct_gather_db
+ProfileInfluxDBDefault=ALL
+ProfileInfluxDBHost=testhostname
+ProfileInfluxDBPass=testpassword
+ProfileInfluxDBRTPolicy=testpolicy
+ProfileInfluxDBUser=testuser
+ProfileInfluxDBTimeout=10
+InfinibandOFEDPort=0
+SysfsInterfaces=enp0s1
+"""
 EXAMPLE_CGROUP_CONFIG = """#
 # `cgroup.conf` file generated at 2024-09-18 15:10:44.652017 by slurmutils.
 #
@@ -621,6 +642,45 @@ class TestSlurmctldConfig(TestCase):
         # Ensure that permissions on file are correct.
         f_info = Path("/var/snap/slurm/common/etc/slurm/slurm.conf").stat()
         self.assertEqual(stat.filemode(f_info.st_mode), "-rw-r--r--")
+        self.assertEqual(f_info.st_uid, FAKE_USER_UID)
+        self.assertEqual(f_info.st_gid, FAKE_GROUP_GID)
+
+
+class TestAcctGatherConfig(TestCase):
+    """Test the `slurmctld` service acct_gather configuration manager."""
+
+    def setUp(self) -> None:
+        self.setUpPyfakefs()
+        self.manager = SlurmctldManager(snap=True)
+        self.fs.create_file(
+            "/var/snap/slurm/common/etc/slurm/acct_gather.conf",
+            contents=EXAMPLE_ACCT_GATHER_CONFIG,
+        )
+
+    def test_config(self) -> None:
+        """Test that manager can manipulate cgroup.conf configuration file."""
+        # Fake user and group that owns `cgroup.conf`.
+        self.manager.acct_gather._user = FAKE_USER_NAME
+        self.manager.acct_gather._group = FAKE_GROUP_NAME
+
+        with self.manager.acct_gather.edit() as config:
+            self.assertEqual(config.energy_ipmi_frequency, "1")
+            self.assertEqual(config.energy_ipmi_calc_adjustment, "yes")
+            self.assertListEqual(config.sysfs_interfaces, ["enp0s1"])
+
+            config.energy_ipmi_frequency = "2"
+            config.energy_ipmi_calc_adjustment = "no"
+            config.sysfs_interfaces = ["enp0s2"]
+
+        # Exit the context to save changes to the file
+        config = self.manager.acct_gather.load()
+        self.assertEqual(config.energy_ipmi_frequency, "2")
+        self.assertEqual(config.energy_ipmi_calc_adjustment, "no")
+        self.assertListEqual(config.sysfs_interfaces, ["enp0s2"])
+
+        # Ensure that permissions on file are correct.
+        f_info = Path("/var/snap/slurm/common/etc/slurm/acct_gather.conf").stat()
+        self.assertEqual(stat.filemode(f_info.st_mode), "-rw-------")
         self.assertEqual(f_info.st_uid, FAKE_USER_UID)
         self.assertEqual(f_info.st_gid, FAKE_GROUP_GID)
 
