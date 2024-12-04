@@ -76,8 +76,8 @@ import dotenv
 import yaml
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from slurmutils.editors import cgroupconfig, slurmconfig, slurmdbdconfig
-from slurmutils.models import CgroupConfig, SlurmConfig, SlurmdbdConfig
+from slurmutils.editors import acctgatherconfig, cgroupconfig, slurmconfig, slurmdbdconfig
+from slurmutils.models import AcctGatherConfig, CgroupConfig, SlurmConfig, SlurmdbdConfig
 
 try:
     import charms.operator_libs_linux.v0.apt as apt
@@ -103,7 +103,7 @@ PYDEPS = [
     "cryptography~=43.0.1",
     "pyyaml>=6.0.2",
     "python-dotenv~=1.0.1",
-    "slurmutils~=0.8.3",
+    "slurmutils~=0.9.0",
     "distro~=1.9.0",
 ]
 
@@ -259,6 +259,28 @@ class _SlurmConfigManager(_ConfigManager):
         """Edit the current `slurm.conf` configuration file."""
         with slurmconfig.edit(
             self._config_path, mode=0o644, user=self._user, group=self._group
+        ) as config:
+            yield config
+
+
+class _AcctGatherConfigManager(_ConfigManager):
+    """Manage the `acct_gather.conf` configuration file."""
+
+    def load(self) -> AcctGatherConfig:
+        """Load the current `acct_gather.conf` configuration file."""
+        return acctgatherconfig.load(self._config_path)
+
+    def dump(self, config: AcctGatherConfig) -> None:
+        """Dump new configuration into `acct_gather.conf` configuration file."""
+        acctgatherconfig.dump(
+            config, self._config_path, mode=0o600, user=self._user, group=self._group
+        )
+
+    @contextmanager
+    def edit(self) -> AcctGatherConfig:
+        """Edit the current `acct_gather.conf` configuration file."""
+        with acctgatherconfig.edit(
+            self._config_path, mode=0o600, user=self._user, group=self._group
         ) as config:
             yield config
 
@@ -915,6 +937,9 @@ class SlurmctldManager(_SlurmManagerBase):
         super().__init__(service=_ServiceType.SLURMCTLD, *args, **kwargs)
         self.config = _SlurmConfigManager(
             self._ops_manager.etc_path / "slurm.conf", self.user, self.group
+        )
+        self.acct_gather = _AcctGatherConfigManager(
+            self._ops_manager.etc_path / "acct_gather.conf", self.user, self.group
         )
         self.cgroup = _CgroupConfigManager(
             self._ops_manager.etc_path / "cgroup.conf", self.user, self.group
