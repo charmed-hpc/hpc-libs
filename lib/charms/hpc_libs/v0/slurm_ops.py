@@ -338,17 +338,37 @@ class _ServiceManager(ABC):
 class _SystemctlServiceManager(_ServiceManager):
     """Control a Slurm service using systemctl services."""
 
+    def start(self) -> None:
+        """Start service.
+
+        Raises:
+            SlurmOpsError: Raised if `systemctl start ...` returns a non-zero returncode.
+        """
+        _systemctl("start", self._service.value)
+
+    def stop(self) -> None:
+        """Stop service.
+
+        Raises:
+            SlurmOpsError: Raised if `systemctl stop ...` returns a non-zero returncode.
+        """
+        _systemctl("stop", self._service.value)
+
     def enable(self) -> None:
         """Enable service.
 
         Raises:
             SlurmOpsError: Raised if `systemctl enable ...` returns a non-zero returncode.
         """
-        _systemctl("enable", "--now", self._service.value)
+        _systemctl("enable", self._service.value)
 
     def disable(self) -> None:
-        """Disable service."""
-        _systemctl("disable", "--now", self._service.value)
+        """Disable service.
+
+        Raises:
+            SlurmOpsError: Raised if `systemctl disable ...` returns a non-zero returncode.
+        """
+        _systemctl("disable", self._service.value)
 
     def restart(self) -> None:
         """Restart service."""
