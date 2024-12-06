@@ -40,6 +40,7 @@ def test_slurm_config(slurmctld: SlurmctldManager) -> None:
     """Test that the slurm config can be changed."""
     with slurmctld.config.edit() as config:
         config.slurmctld_host = [slurmctld.hostname]
+        config.state_save_location = "/var/lib/slurm/checkpoint"
         config.cluster_name = "test-cluster"
 
     for line in str(slurmctld.config.load()).splitlines():
