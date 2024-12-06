@@ -912,9 +912,10 @@ class SackdManager(_SlurmManagerBase):
         self._env_manager = self._ops_manager.env_manager_for(_ServiceType.SACKD)
 
     @property
-    def config_server(self) -> str:
+    def config_server(self) -> str | None:
         """Get the configuration server address of this `sackd` node."""
-        return self._env_manager.get("SACKD_CONFIG_SERVER")
+        result = self._env_manager.get("SACKD_CONFIG_SERVER")
+        return None if result == "" else result
 
     @config_server.setter
     def config_server(self, addr: str) -> None:
@@ -971,7 +972,7 @@ class SlurmdManager(_SlurmManagerBase):
         return "root"
 
     @property
-    def config_server(self) -> str:
+    def config_server(self) -> str | None:
         """Get the configuration server address of this `slurmd` node."""
         return self._env_manager.get("SLURMD_CONFIG_SERVER")
 
@@ -1000,7 +1001,7 @@ class SlurmdbdManager(_SlurmManagerBase):
         )
 
     @property
-    def mysql_unix_port(self) -> str:
+    def mysql_unix_port(self) -> str | None:
         """Get the URI of the unix socket `slurmdbd` uses to communicate with MySQL."""
         return self._env_manager.get("MYSQL_UNIX_PORT")
 
