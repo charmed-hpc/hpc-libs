@@ -657,19 +657,26 @@ class _AptManager(_OpsManager):
         """Override defaults supplied provided by Slurm Debian packages."""
         match self._service_name:
             case "sackd":
+                _logger.debug("overriding default sackd service configuration")
+                config_override = Path(
+                    "/etc/systemd/system/sackd.service.d/10-sackd-config-server.conf"
+                )
+                config_override.parent.mkdir(parents=True, exist_ok=True)
+                config_override.write_text(
+                    textwrap.dedent(
+                        """
+                        [Service]
+                        ExecStart=
+                        ExecStart=/usr/sbin/sackd --systemd --conf-server $SACKD_CONFIG_SERVER
+                        """
+                    )
+                )
+
                 # TODO: https://github.com/charmed-hpc/hpc-libs/issues/54 -
                 #   Make `sackd` create its service environment file so that we
                 #   aren't required to manually create it here.
                 _logger.debug("creating sackd environment file")
                 self._env_file.touch(mode=0o644, exist_ok=True)
-                self._env_file.write_text(
-                    textwrap.dedent(
-                        """
-                        SACKD_CONFIG_SERVER=''
-                        SACKD_OPTIONS="${SACKD_CONFIG_SERVER:+--conf-server $SACKD_CONFIG_SERVER}"
-                        """
-                    )
-                )
             case "slurmctld":
                 _logger.debug("overriding default slurmctld service configuration")
                 self._set_ulimit()
@@ -914,8 +921,7 @@ class SackdManager(_SlurmManagerBase):
     @property
     def config_server(self) -> str | None:
         """Get the configuration server address of this `sackd` node."""
-        result = self._env_manager.get("SACKD_CONFIG_SERVER")
-        return None if result == "" else result
+        return self._env_manager.get("SACKD_CONFIG_SERVER")
 
     @config_server.setter
     def config_server(self, addr: str) -> None:
@@ -927,15 +933,8 @@ class SackdManager(_SlurmManagerBase):
 
     @config_server.deleter
     def config_server(self) -> None:
-        """Unset the configuration server address of this `sackd` node.
-
-        Warnings:
-            The `SACKD_CONFIG_SERVER` is set to an emtpy string rather than
-            deleted from the environment file to preserve the line order necessary
-            to successfully use variable substitution within the `SACKD_OPTIONS`
-            environment variable.
-        """
-        self._env_manager.set({"SACKD_CONFIG_SERVER": ""})
+        """Unset the configuration server address of this `sackd` node."""
+        self._env_manager.unset("SACKD_CONFIG_SERVER")
 
 
 class SlurmctldManager(_SlurmManagerBase):
