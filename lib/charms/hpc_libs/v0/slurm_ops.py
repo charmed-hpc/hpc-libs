@@ -39,13 +39,13 @@ class ApplicationCharm(CharmBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._slurm_manager = SlurmctldManager(snap=True)
+        self._slurmctld = SlurmctldManager(snap=True)
         self.framework.observe(self.on.install, self._on_install)
 
     def _on_install(self, _) -> None:
         self._slurmctld.install()
         self.unit.set_workload_version(self._slurmctld.version())
-        with self._slurmctld.config() as config:
+        with self._slurmctld.config.edit() as config:
             config.cluster_name = "cluster"
 ```
 """
@@ -125,11 +125,11 @@ def _call(
 ) -> subprocess.CompletedProcess:
     """Call a command with logging.
 
-    If the `check` argument is set to `False`, the command call will not raise an error if the command
-    fails.
+    If the `check` argument is set to `False`, the command call
+    will not raise an error if the command fails.
 
     Raises:
-        SlurmOpsError: Raised if the command fails.
+        SlurmOpsError: Raised if the executed command fails.
     """
     cmd = [cmd, *args]
     _logger.debug(f"executing command {cmd}")
@@ -414,7 +414,7 @@ class _SnapServiceManager(_ServiceManager):
 
 
 class _OpsManager(ABC):
-    """Manager to control the installation, creation and configuration of Slurm-related services."""
+    """Manager to control the lifecycle of Slurm-related services."""
 
     @abstractmethod
     def install(self) -> None:
@@ -444,7 +444,7 @@ class _OpsManager(ABC):
 
 
 class _SnapManager(_OpsManager):
-    """Slurm ops manager that uses Snap as its package manager."""
+    """Operations manager for the Slurm snap backend."""
 
     def install(self) -> None:
         """Install Slurm using the `slurm` snap."""
@@ -486,7 +486,7 @@ class _SnapManager(_OpsManager):
 
 
 class _AptManager(_OpsManager):
-    """Slurm ops manager that uses apt as its package manager.
+    """Operations manager for the Slurm Debian package backend.
 
     Notes:
         This manager provides some environment variables that are automatically passed to the
@@ -499,7 +499,7 @@ class _AptManager(_OpsManager):
         self._env_file = Path(f"/etc/default/{self._service_name}")
 
     def install(self) -> None:
-        """Install Slurm using the `slurm` snap."""
+        """Install Slurm using the `slurm-wlm` Debian package set."""
         self._init_ubuntu_hpc_ppa()
         self._install_service()
         self._create_state_save_location()
@@ -657,27 +657,19 @@ class _AptManager(_OpsManager):
         """Override defaults supplied provided by Slurm Debian packages."""
         match self._service_name:
             case "sackd":
-                _logger.debug("overriding default sackd service configuration")
-                config_override = Path(
-                    "/etc/systemd/system/sackd.service.d/10-sackd-config-server.conf"
-                )
-                config_override.mkdir(parents=True, exist_ok=True)
-                config_override.write_text(
-                    textwrap.dedent(
-                        """
-                        [Service]
-                        ExecStart=
-                        ExecStart=/usr/bin/sh -c "/usr/sbin/sackd --systemd $${SACKD_CONFIG_SERVER:+--conf-server $$SACKD_CONFIG_SERVER} $$SACKD_OPTIONS"
-                        """
-                    )
-                )
-
                 # TODO: https://github.com/charmed-hpc/hpc-libs/issues/54 -
                 #   Make `sackd` create its service environment file so that we
                 #   aren't required to manually create it here.
                 _logger.debug("creating sackd environment file")
-                self._env_file.touch(mode=0o644)
-                dotenv.set_key(self._env_file, "SACKD_OPTIONS", "")
+                self._env_file.touch(mode=0o644, exist_ok=True)
+                self._env_file.write_text(
+                    textwrap.dedent(
+                        """
+                        SACKD_CONFIG_SERVER=''
+                        SACKD_OPTIONS="${SACKD_CONFIG_SERVER:+--conf-server $SACKD_CONFIG_SERVER}"
+                        """
+                    )
+                )
             case "slurmctld":
                 _logger.debug("overriding default slurmctld service configuration")
                 self._set_ulimit()
@@ -907,13 +899,13 @@ class _SlurmManagerBase:
         """Control Slurm via `scontrol` commands.
 
         Raises:
-            SlurmOpsError: Raised if scontrol command fails.
+            SlurmOpsError: Raised if `scontrol` command fails.
         """
         return _call("scontrol", *args).stdout
 
 
 class SackdManager(_SlurmManagerBase):
-    """Manager for the Sackd service."""
+    """Manager for the `sackd` service."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(service=_ServiceType.SACKD, *args, **kwargs)
@@ -921,22 +913,32 @@ class SackdManager(_SlurmManagerBase):
 
     @property
     def config_server(self) -> str:
-        """Get the config server address of this Sackd node."""
+        """Get the configuration server address of this `sackd` node."""
         return self._env_manager.get("SACKD_CONFIG_SERVER")
 
     @config_server.setter
     def config_server(self, addr: str) -> None:
-        """Set the config server address of this Sackd node."""
+        """Set the configuration server address of this `sackd` node.
+
+        Sets the `--conf-server` option for `sackd`.
+        """
         self._env_manager.set({"SACKD_CONFIG_SERVER": addr})
 
     @config_server.deleter
     def config_server(self) -> None:
-        """Unset the config server address of this Sackd node."""
-        self._env_manager.unset("SACKD_CONFIG_SERVER")
+        """Unset the configuration server address of this `sackd` node.
+
+        Warnings:
+            The `SACKD_CONFIG_SERVER` is set to an emtpy string rather than
+            deleted from the environment file to preserve the line order necessary
+            to successfully use variable substitution within the `SACKD_OPTIONS`
+            environment variable.
+        """
+        self._env_manager.set({"SACKD_CONFIG_SERVER": ""})
 
 
 class SlurmctldManager(_SlurmManagerBase):
-    """Manager for the Slurmctld service."""
+    """Manager for the `slurmctld` service."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(service=_ServiceType.SLURMCTLD, *args, **kwargs)
@@ -952,13 +954,7 @@ class SlurmctldManager(_SlurmManagerBase):
 
 
 class SlurmdManager(_SlurmManagerBase):
-    """Manager for the Slurmd service.
-
-    This service will additionally provide some environment variables that need to be
-    passed through to the service in case the default service is overriden (e.g. a systemctl file override).
-
-        - SLURMD_CONFIG_SERVER. Sets the `--conf-server` option for `slurmd`.
-    """
+    """Manager for the `slurmd` service."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(service=_ServiceType.SLURMD, *args, **kwargs)
@@ -976,22 +972,25 @@ class SlurmdManager(_SlurmManagerBase):
 
     @property
     def config_server(self) -> str:
-        """Get the config server address of this Slurmd node."""
+        """Get the configuration server address of this `slurmd` node."""
         return self._env_manager.get("SLURMD_CONFIG_SERVER")
 
     @config_server.setter
     def config_server(self, addr: str) -> None:
-        """Set the config server address of this Slurmd node."""
+        """Set the configuration server address of this `slurmd` node.
+
+        Sets the `--conf-server` option for `slurmd`.
+        """
         self._env_manager.set({"SLURMD_CONFIG_SERVER": addr})
 
     @config_server.deleter
     def config_server(self) -> None:
-        """Unset the config server address of this Slurmd node."""
+        """Unset the configuration server address of this `slurmd` node."""
         self._env_manager.unset("SLURMD_CONFIG_SERVER")
 
 
 class SlurmdbdManager(_SlurmManagerBase):
-    """Manager for the Slurmdbd service."""
+    """Manager for the `slurmdbd` service."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(service=_ServiceType.SLURMDBD, *args, **kwargs)
@@ -1002,12 +1001,12 @@ class SlurmdbdManager(_SlurmManagerBase):
 
     @property
     def mysql_unix_port(self) -> str:
-        """Get the URI of the unix socket slurmdbd uses to communicate with MySQL."""
+        """Get the URI of the unix socket `slurmdbd` uses to communicate with MySQL."""
         return self._env_manager.get("MYSQL_UNIX_PORT")
 
     @mysql_unix_port.setter
     def mysql_unix_port(self, socket_path: Union[str, os.PathLike]) -> None:
-        """Set the unix socket URI that slurmdbd will use to communicate with MySQL."""
+        """Set the unix socket URI that `slurmdbd` will use to communicate with MySQL."""
         self._env_manager.set({"MYSQL_UNIX_PORT": socket_path})
 
     @mysql_unix_port.deleter
@@ -1017,7 +1016,7 @@ class SlurmdbdManager(_SlurmManagerBase):
 
 
 class SlurmrestdManager(_SlurmManagerBase):
-    """Manager for the Slurmrestd service."""
+    """Manager for the `slurmrestd` service."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(service=_ServiceType.SLURMRESTD, *args, **kwargs)
@@ -1027,10 +1026,10 @@ class SlurmrestdManager(_SlurmManagerBase):
 
     @property
     def user(self) -> str:
-        """Get the user that the slurmrestd service will run as."""
+        """Get the user that the `slurmrestd` service will run as."""
         return "slurmrestd"
 
     @property
     def group(self):
-        """Get the group that the slurmrestd service will run as."""
+        """Get the group that the `slurmrestd` service will run as."""
         return "slurmrestd"
