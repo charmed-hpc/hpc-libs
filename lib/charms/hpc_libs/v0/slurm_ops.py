@@ -116,7 +116,7 @@ PYDEPS = [
     "cryptography~=44.0.0",
     "pyyaml>=6.0.2",
     "python-dotenv~=1.0.1",
-    "slurmutils~=0.10.0",
+    "slurmutils<1.0.0,>=0.11.0",
     "distro~=1.9.0",
 ]
 
