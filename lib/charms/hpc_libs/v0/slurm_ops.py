@@ -1,4 +1,4 @@
-# Copyright 2024 Canonical Ltd.
+# Copyright 2024-2025 Canonical Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -654,7 +654,7 @@ class _AptManager(_OpsManager):
             case "slurmctld":
                 packages.extend(["libpmix-dev", "mailutils", "prometheus-slurm-exporter"])
             case "slurmd":
-                packages.extend(["libpmix-dev", "openmpi-bin"])
+                packages.extend(["slurm-client", "libpmix-dev", "openmpi-bin"])
             case "slurmrestd":
                 packages.extend(["slurm-wlm-basic-plugins"])
             case _:
