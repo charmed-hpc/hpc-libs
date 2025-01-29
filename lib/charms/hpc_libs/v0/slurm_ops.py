@@ -805,7 +805,7 @@ class _AptManager(_OpsManager):
                 self._set_ulimit()
 
                 nofile_override = Path(
-                    "/etc/systemd/system/slurmctld.service.d/10-slurmd-nofile.conf"
+                    "/etc/systemd/system/slurmd.service.d/10-slurmd-nofile.conf"
                 )
                 nofile_override.parent.mkdir(exist_ok=True, parents=True)
                 nofile_override.write_text(
@@ -833,7 +833,7 @@ class _AptManager(_OpsManager):
                 )
 
                 restart_override = Path(
-                    "/etc/systemd/system/slurmctld.service.d/30-slurmd-restart.conf"
+                    "/etc/systemd/system/slurmd.service.d/30-slurmd-restart.conf"
                 )
                 restart_override.parent.mkdir(exist_ok=True, parents=True)
                 restart_override.write_text(
