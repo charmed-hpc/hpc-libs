@@ -820,6 +820,25 @@ class _AptManager(_OpsManager):
                         """
                     )
                 )
+            case "slurmdbd":
+                # TODO: https://github.com/charmed-hpc/hpc-libs/issues/39 -
+                #   Make `slurmrestd` package preinst hook create the system user and group
+                #   so that we do not need to do it manually here.
+                _logger.debug("Creating slurmdbd service override.")
+                slurmdbd_service_override = Path(
+                    "/etc/systemd/system/slurmdbd.service.d/10-slurmdbd-exec-pre-pid.conf"
+                )
+                slurmdbd_service_override.parent.mkdir(exist_ok=True, parents=True)
+                slurmdbd_service_override.write_text(
+                    textwrap.dedent(
+                        """
+                        [Service]
+                        ExecPreStart=/bin/mkdir /var/run/slurmdbd
+                        ExecPreStart=/bin/chown slurm /var/run/slurmdbd
+                        PidFile=/var/run/slurmdbd/slurmdbd.pid
+                        """
+                    )
+                )
             case _:
                 _logger.debug("'%s' does not require any overrides", self._service_name)
 
