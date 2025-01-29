@@ -835,7 +835,7 @@ class _AptManager(_OpsManager):
                         [Service]
                         ExecPreStart=/bin/mkdir /var/run/slurmdbd
                         ExecPreStart=/bin/chown slurm /var/run/slurmdbd
-                        PidFile=/var/run/slurmdbd/slurmdbd.pid
+                        PIDFile=/var/run/slurmdbd/slurmdbd.pid
                         """
                     )
                 )
