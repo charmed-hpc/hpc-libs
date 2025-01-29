@@ -778,6 +778,22 @@ class _AptManager(_OpsManager):
                     )
                 )
 
+                sackd_restart_override = Path(
+                    "/etc/systemd/system/sackd.service.d/20-sackd-restart.conf"
+                )
+                sackd_restart_override.parent.mkdir(exist_ok=True, parents=True)
+                sackd_restart_override.write_text(
+                    textwrap.dedent(
+                        """
+                        [Unit]
+                        StartLimitIntervalSec=120
+                        StartLimitBurst=10
+                        [Service]
+                        Restart=on-failure
+                        RestartSec=10
+                        """
+                    )
+                )
                 # TODO: https://github.com/charmed-hpc/hpc-libs/issues/54 -
                 #   Make `sackd` create its service environment file so that we
                 #   aren't required to manually create it here.
