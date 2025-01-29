@@ -854,9 +854,6 @@ class _AptManager(_OpsManager):
                     )
                 )
             case "slurmdbd":
-                # TODO: https://github.com/charmed-hpc/hpc-libs/issues/39 -
-                #   Make `slurmrestd` package preinst hook create the system user and group
-                #   so that we do not need to do it manually here.
                 _logger.debug("Creating slurmdbd service override.")
                 slurmdbd_service_override = Path(
                     "/etc/systemd/system/slurmdbd.service.d/10-slurmdbd-exec-pre-pid.conf"
