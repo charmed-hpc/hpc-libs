@@ -831,6 +831,23 @@ class _AptManager(_OpsManager):
                         """
                     )
                 )
+
+                restart_override = Path(
+                    "/etc/systemd/system/slurmctld.service.d/30-slurmd-restart.conf"
+                )
+                restart_override.parent.mkdir(exist_ok=True, parents=True)
+                restart_override.write_text(
+                    textwrap.dedent(
+                        """
+                        [Unit]
+                        StartLimitIntervalSec=90
+                        StartLimitBurst=10
+                        [Service]
+                        Restart=on-failure
+                        RestartSec=10
+                        """
+                    )
+                )
             case "slurmrestd":
                 # TODO: https://github.com/charmed-hpc/hpc-libs/issues/39 -
                 #   Make `slurmrestd` package preinst hook create the system user and group
