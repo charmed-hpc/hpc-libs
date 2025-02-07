@@ -66,7 +66,7 @@ import socket
 import subprocess
 import textwrap
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from enum import Enum
 from pathlib import Path
@@ -91,6 +91,7 @@ from slurmutils.models import (
     SlurmConfig,
     SlurmdbdConfig,
 )
+from slurmutils.models.model import BaseModel
 
 try:
     import charms.operator_libs_linux.v0.apt as apt
@@ -133,7 +134,7 @@ class SlurmOpsError(Exception):
 
 
 def _call(
-    cmd: str, *args: str, stdin: Optional[str] = None, check: bool = True
+    root: str, *args: str, stdin: Optional[str] = None, check: bool = True
 ) -> subprocess.CompletedProcess:
     """Call a command with logging.
 
@@ -143,7 +144,7 @@ def _call(
     Raises:
         SlurmOpsError: Raised if the executed command fails.
     """
-    cmd = [cmd, *args]
+    cmd = [root, *args]
     _logger.debug(f"executing command {cmd}")
 
     result = subprocess.run(cmd, input=stdin, capture_output=True, text=True)
@@ -239,7 +240,7 @@ class _ConfigManager(ABC):
         self._group = group
 
     @abstractmethod
-    def load(self):
+    def load(self) -> BaseModel:
         """Load the current configuration from the configuration file."""
 
     @abstractmethod
@@ -253,7 +254,7 @@ class _ConfigManager(ABC):
 
     @contextmanager
     @abstractmethod
-    def edit(self):
+    def edit(self) -> Iterator[BaseModel]:
         """Edit the current configuration file."""
 
 
@@ -271,7 +272,7 @@ class _AcctGatherConfigManager(_ConfigManager):
         )
 
     @contextmanager
-    def edit(self) -> AcctGatherConfig:
+    def edit(self) -> Iterator[AcctGatherConfig]:
         """Edit the current `acct_gather.conf` configuration file."""
         with acctgatherconfig.edit(
             self._config_path, mode=0o600, user=self._user, group=self._group
@@ -293,7 +294,7 @@ class _CgroupConfigManager(_ConfigManager):
         )
 
     @contextmanager
-    def edit(self) -> CgroupConfig:
+    def edit(self) -> Iterator[CgroupConfig]:
         """Edit the current `cgroup.conf` configuration file."""
         with cgroupconfig.edit(
             self._config_path, mode=0o644, user=self._user, group=self._group
@@ -313,7 +314,7 @@ class _GRESConfigManager(_ConfigManager):
         gresconfig.dump(config, self._config_path, mode=0o644, user=self._user, group=self._group)
 
     @contextmanager
-    def edit(self) -> GRESConfig:
+    def edit(self) -> Iterator[GRESConfig]:
         """Edit the current `gres.conf` configuration file."""
         with gresconfig.edit(
             self._config_path, mode=0o644, user=self._user, group=self._group
@@ -333,7 +334,7 @@ class _SlurmConfigManager(_ConfigManager):
         slurmconfig.dump(config, self._config_path, mode=0o644, user=self._user, group=self._group)
 
     @contextmanager
-    def edit(self) -> SlurmConfig:
+    def edit(self) -> Iterator[SlurmConfig]:
         """Edit the current `slurm.conf` configuration file."""
         with slurmconfig.edit(
             self._config_path, mode=0o644, user=self._user, group=self._group
@@ -355,7 +356,7 @@ class _SlurmdbdConfigManager(_ConfigManager):
         )
 
     @contextmanager
-    def edit(self) -> SlurmdbdConfig:
+    def edit(self) -> Iterator[SlurmdbdConfig]:
         """Edit the current `slurmdbd.conf` configuration file."""
         with slurmdbdconfig.edit(
             self._config_path, mode=0o600, user=self._user, group=self._group
@@ -418,33 +419,21 @@ class _SystemctlServiceManager(_ServiceManager):
         """
         _systemctl("stop", self._service.value)
 
-    def enable(self, now: bool = False) -> None:
+    def enable(self) -> None:
         """Enable service.
-
-        Args:
-            now: If `True`, also start the service after enabling it by passing the `--now` flag.
 
         Raises:
             SlurmOpsError: Raised if `systemctl enable ...` returns a non-zero returncode.
         """
-        cmd = ["enable"]
-        if now:
-            cmd.append("--now")
-        _systemctl(*cmd, self._service.value)
+        _systemctl("enable", self._service.value)
 
-    def disable(self, now: bool = False) -> None:
+    def disable(self) -> None:
         """Disable service.
-
-        Args:
-            now: If `True`, also stop the service after enabling it be passing the `--now` flag.
 
         Raises:
             SlurmOpsError: Raised if `systemctl disable ...` returns a non-zero returncode.
         """
-        cmd = ["disable"]
-        if now:
-            cmd.append("--now")
-        _systemctl(*cmd, self._service.value)
+        _systemctl("disable", self._service.value)
 
     def restart(self) -> None:
         """Restart service.
