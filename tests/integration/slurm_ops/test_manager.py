@@ -57,8 +57,8 @@ def test_slurm_config(slurmctld: SlurmctldManager) -> None:
 
 @pytest.mark.order(4)
 def test_enable_service(slurmctld: SlurmctldManager) -> None:
-    """Test that the slurmctld daemon can be enabled."""
-    slurmctld.service.enable()
+    """Test that the slurmctld daemon can be started."""
+    slurmctld.service.start()
     assert slurmctld.service.active()
 
 
