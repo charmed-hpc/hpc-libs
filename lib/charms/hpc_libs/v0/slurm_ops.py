@@ -378,6 +378,14 @@ class _ServiceManager(ABC):
         """Disable service."""
 
     @abstractmethod
+    def start(self) -> None:
+        """Start service."""
+
+    @abstractmethod
+    def stop(self) -> None:
+        """Stop service."""
+
+    @abstractmethod
     def restart(self) -> None:
         """Restart service."""
 
@@ -390,7 +398,6 @@ class _ServiceManager(ABC):
         """Return the service type of the managed service."""
         return self._service
 
-
 class _SystemctlServiceManager(_ServiceManager):
     """Control a Slurm service using systemctl services."""
 
@@ -400,15 +407,23 @@ class _SystemctlServiceManager(_ServiceManager):
         Raises:
             SlurmOpsError: Raised if `systemctl enable ...` returns a non-zero returncode.
         """
-        _systemctl("enable", "--now", self._service.value)
+        _systemctl("enable", self._service.value)
 
     def disable(self) -> None:
         """Disable service."""
-        _systemctl("disable", "--now", self._service.value)
+        _systemctl("disable", self._service.value)
+
+    def stop(self) -> None:
+        """Stop service."""
+        _systemctl("stop", self._service.value)
+
+    def start(self) -> None:
+        """Start service."""
+        _systemctl("start", self._service.value)
 
     def restart(self) -> None:
         """Restart service."""
-        _systemctl("reload-or-restart", self._service.value)
+        _systemctl("restart", self._service.value)
 
     def active(self) -> bool:
         """Return True if the service is active."""
@@ -428,6 +443,14 @@ class _SnapServiceManager(_ServiceManager):
     def disable(self) -> None:
         """Disable service."""
         _snap("stop", "--disable", f"slurm.{self._service.value}")
+
+    def stop(self) -> None:
+        """Stop service."""
+        self.disable()
+
+    def start(self) -> None:
+        """Start service."""
+        self.enable()
 
     def restart(self) -> None:
         """Restart service."""
