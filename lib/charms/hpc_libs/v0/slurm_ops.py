@@ -109,7 +109,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 13
+LIBPATCH = 14
 
 # Charm library dependencies to fetch during `charmcraft pack`.
 PYDEPS = [
