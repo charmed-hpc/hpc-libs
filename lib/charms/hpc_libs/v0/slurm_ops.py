@@ -370,6 +370,14 @@ class _ServiceManager(ABC):
         self._service = service
 
     @abstractmethod
+    def start(self) -> None:
+        """Start service."""
+
+    @abstractmethod
+    def stop(self) -> None:
+        """Stop service."""
+
+    @abstractmethod
     def enable(self) -> None:
         """Enable service."""
 
@@ -394,21 +402,57 @@ class _ServiceManager(ABC):
 class _SystemctlServiceManager(_ServiceManager):
     """Control a Slurm service using systemctl services."""
 
-    def enable(self) -> None:
+    def start(self) -> None:
+        """Start service.
+
+        Raises:
+            SlurmOpsError: Raised if `systemctl start ...` returns a non-zero returncode.
+        """
+        _systemctl("start", self._service.value)
+
+    def stop(self) -> None:
+        """Stop service.
+
+        Raises:
+            SlurmOpsError: Raised if `systemctl stop ...` returns a non-zero returncode.
+        """
+        _systemctl("stop", self._service.value)
+
+    def enable(self, now: bool = False) -> None:
         """Enable service.
+
+        Args:
+            now: If `True`, also start the service after enabling it by passing the `--now` flag.
 
         Raises:
             SlurmOpsError: Raised if `systemctl enable ...` returns a non-zero returncode.
         """
-        _systemctl("enable", "--now", self._service.value)
+        cmd = ["enable"]
+        if now:
+            cmd.append("--now")
+        _systemctl(*cmd, self._service.value)
 
-    def disable(self) -> None:
-        """Disable service."""
-        _systemctl("disable", "--now", self._service.value)
+    def disable(self, now: bool = False) -> None:
+        """Disable service.
+
+        Args:
+            now: If `True`, also stop the service after enabling it be passing the `--now` flag.
+
+        Raises:
+            SlurmOpsError: Raised if `systemctl disable ...` returns a non-zero returncode.
+        """
+        cmd = ["disable"]
+        if now:
+            cmd.append("--now")
+        _systemctl(*cmd, self._service.value)
 
     def restart(self) -> None:
-        """Restart service."""
-        _systemctl("reload-or-restart", self._service.value)
+        """Restart service.
+
+        Raises:
+            SlurmOpsError: Raised if `systemctl restart ...` returns a non-zero returncode.
+        """
+        _systemctl("restart", self._service.value)
 
     def active(self) -> bool:
         """Return True if the service is active."""
@@ -421,23 +465,59 @@ class _SystemctlServiceManager(_ServiceManager):
 class _SnapServiceManager(_ServiceManager):
     """Control a Slurm service."""
 
+    def start(self) -> None:
+        """Start service.
+
+        Raises:
+            SlurmOpsError: Raised if `snap start ...` returns a non-zero returncode.
+        """
+        _snap("start", f"slurm.{self._service.value}")
+
+    def stop(self) -> None:
+        """Stop service.
+
+        Raises:
+            SlurmOpsError: Raised if `snap stop ...` returns a non-zero returncode.
+        """
+        _snap("stop", f"slurm.{self._service.value}")
+
     def enable(self) -> None:
-        """Enable service."""
+        """Enable service.
+
+        Raises:
+            SlurmOpsError: Raised if `snap start --enable ...` returns a non-zero returncode.
+
+        Notes:
+            * Enabling the service will also start the service if it is not active.
+        """
         _snap("start", "--enable", f"slurm.{self._service.value}")
 
     def disable(self) -> None:
-        """Disable service."""
+        """Disable service.
+
+        Raises:
+            SlurmOpsError: Raised if `snap stop --disable ...` returns a non-zero returncode.
+
+        Notes:
+            * Disabling the service will also stop the service if it is active.
+        """
         _snap("stop", "--disable", f"slurm.{self._service.value}")
 
     def restart(self) -> None:
-        """Restart service."""
+        """Restart service.
+
+        Raises:
+            SlurmOpsError: Raised if `snap restart ...` returns a non-zero returncode.
+        """
         _snap("restart", f"slurm.{self._service.value}")
 
     def active(self) -> bool:
         """Return True if the service is active."""
         info = yaml.safe_load(_snap("info", "slurm"))
         if (services := info.get("services")) is None:
-            raise SlurmOpsError("unable to retrive snap info. ensure slurm is correctly installed")
+            raise SlurmOpsError(
+                "unable to retrieve snap info. ensure slurm is correctly installed"
+            )
 
         # Assume `services` contains the service, since `ServiceManager` is not exposed as a
         # public interface for now.
@@ -482,7 +562,7 @@ class _SnapManager(_OpsManager):
         """Install Slurm using the `slurm` snap."""
         # TODO: https://github.com/charmed-hpc/hpc-libs/issues/35 -
         #   Pin Slurm snap to stable channel.
-        _snap("install", "slurm", "--channel", "latest/candidate", "--classic")
+        _snap("install", "slurm", "--channel", "23.11/stable", "--classic")
         # TODO: https://github.com/charmed-hpc/slurm-snap/issues/49 -
         #   Request automatic alias for the Slurm snap so we don't need to do it here.
         #   We will possibly need to account for a third-party Slurm snap installation
