@@ -27,7 +27,18 @@ jobs:
       - name: Install dependencies
         run: pipx install tox
       - name: Run linters
-        run: tox -e lint
+        run: tox run -e lint
+
+  typecheck:
+    name: Static type checking
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: pipx install tox
+      - name: Run tests
+        run: tox run -e typecheck
 
   unit-test:
     name: Unit tests
@@ -38,7 +49,7 @@ jobs:
       - name: Install dependencies
         run: pipx install tox
       - name: Run tests
-        run: tox -e unit
+        run: tox run -e unit
 
   integration-test:
     name: Integration tests
@@ -46,6 +57,7 @@ jobs:
     needs:
       - inclusive-naming-check
       - lint
+      - typecheck
       - unit-test
     steps:
       - name: Checkout
@@ -60,4 +72,4 @@ jobs:
         run: |
           sudo snap install gambol
       - name: Run tests
-        run: tox -e integration
+        run: tox run -e integration
