@@ -398,6 +398,7 @@ class _ServiceManager(ABC):
         """Return the service type of the managed service."""
         return self._service
 
+
 class _SystemctlServiceManager(_ServiceManager):
     """Control a Slurm service using systemctl services."""
 
