@@ -830,8 +830,9 @@ class _AptManager(_OpsManager):
                     textwrap.dedent(
                         """
                         [Service]
-                        ExecPreStart=/bin/mkdir /var/run/slurmdbd
-                        ExecPreStart=/bin/chown slurm /var/run/slurmdbd
+                        PermissionsStartOnly=True
+                        RuntimeDirectory=slurmdbd
+                        RuntimeDirectoryMode=0755      
                         PIDFile=/var/run/slurmdbd/slurmdbd.pid
                         """
                     )
