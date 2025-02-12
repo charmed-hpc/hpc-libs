@@ -239,6 +239,11 @@ class _ConfigManager(ABC):
         self._user = user
         self._group = group
 
+    @property
+    def path(self) -> Path:
+        """Return the configuration file path."""
+        return Path(self.config_path)
+
     @abstractmethod
     def load(self) -> BaseModel:
         """Load the current configuration from the configuration file."""
