@@ -909,6 +909,11 @@ class _JWTKeyManager:
         self._user = user
         self._group = group
 
+    @property
+    def path(self) -> Path:
+        """Get the current jwt keyfile path."""
+        return self._keyfile
+
     def get(self) -> str:
         """Get the current jwt key."""
         return self._keyfile.read_text()
