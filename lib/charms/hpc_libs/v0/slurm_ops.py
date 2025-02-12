@@ -832,7 +832,7 @@ class _AptManager(_OpsManager):
                         [Service]
                         PermissionsStartOnly=True
                         RuntimeDirectory=slurmdbd
-                        RuntimeDirectoryMode=0755      
+                        RuntimeDirectoryMode=0755
                         PIDFile=/var/run/slurmdbd/slurmdbd.pid
                         """
                     )
