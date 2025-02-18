@@ -110,11 +110,11 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 15
+LIBPATCH = 16
 
 # Charm library dependencies to fetch during `charmcraft pack`.
 PYDEPS = [
-    "cryptography~=44.0.0",
+    "cryptography~=44.0.1",
     "pyyaml>=6.0.2",
     "python-dotenv~=1.0.1",
     "slurmutils<1.0.0,>=0.11.0",
