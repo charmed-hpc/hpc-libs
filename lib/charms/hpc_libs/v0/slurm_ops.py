@@ -786,7 +786,7 @@ class _AptManager(_OpsManager):
                     textwrap.dedent(
                         """
                         [Unit]
-                        StartLimitIntervalSec=120
+                        StartLimitIntervalSec=90
                         StartLimitBurst=10
                         [Service]
                         Restart=on-failure
