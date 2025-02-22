@@ -927,22 +927,6 @@ class _AptManager(_OpsManager):
                         """
                     )
                 )
-            case "slurmdbd":
-                _logger.debug("Creating slurmdbd service override.")
-                slurmdbd_service_override = Path(
-                    "/etc/systemd/system/slurmdbd.service.d/10-slurmdbd-exec-pre-pid.conf"
-                )
-                slurmdbd_service_override.parent.mkdir(exist_ok=True, parents=True)
-                slurmdbd_service_override.write_text(
-                    textwrap.dedent(
-                        """
-                        [Service]
-                        ExecPreStart=/bin/mkdir /var/run/slurmdbd
-                        ExecPreStart=/bin/chown slurm /var/run/slurmdbd
-                        PIDFile=/var/run/slurmdbd/slurmdbd.pid
-                        """
-                    )
-                )
             case _:
                 _logger.debug("'%s' does not require any overrides", self._service_name)
 
