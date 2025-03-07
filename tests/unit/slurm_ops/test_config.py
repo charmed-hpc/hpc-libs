@@ -197,6 +197,26 @@ class TestConfigManagement(TestCase):
         self.assertEqual(f_info.st_uid, FAKE_USER_UID)
         self.assertEqual(f_info.st_gid, FAKE_GROUP_GID)
 
+    def test_slurmctld_manager_exporter_config(self) -> None:
+        self.fs.create_file("/etc/default/prometheus-slurm-exporter")
+
+        self.assertEqual(self.slurmctld.exporter.args, [])
+
+        self.slurmctld.exporter.args = ["-slurm.cli-fallback", "-slurm.enable-diag"]
+
+        self.assertEqual(
+            self.slurmctld.exporter.args, ["-slurm.cli-fallback", "-slurm.enable-diag"]
+        )
+        self.assertEqual(
+            dotenv.get_key("/etc/default/prometheus-slurm-exporter", "ARGS"),
+            "-slurm.cli-fallback -slurm.enable-diag",
+        )
+
+        del self.slurmctld.exporter.args
+
+        self.assertEqual(self.slurmctld.exporter.args, [])
+        self.assertEqual(dotenv.get_key("/etc/default/prometheus-slurm-exporter", "ARGS"), None)
+
     def test_slurmd_config_server(self) -> None:
         """Test `SlurmdManager` `config_server` descriptors."""
         self.fs.create_file("/etc/default/slurmd")
