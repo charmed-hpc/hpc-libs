@@ -1,6 +1,81 @@
+# Copyright 2025 Canonical Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hpc-libs"
+version = "0.1.0"
+requires-python = ">=3.10"
+description = "Collection of utilities to manage HPC related services."
+authors = [
+    { name = "Ubuntu High-Performance Computing", email = "hpc-ubuntu-group@canonical.com" },
+]
+maintainers = [
+    { name = "Ubuntu High-Performance Computing", email = "hpc-ubuntu-group@canonical.com" },
+]
+license = "Apache-2.0"
+readme = "README.md"
+keywords = ["HPC", "administration", "orchestration", "utility"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+]
+dependencies = [
+    "cryptography~=44.0.1",
+    "pyyaml>=6.0.2",
+    "python-dotenv~=1.0.1",
+    "slurmutils<1.0.0,>=0.11.0",
+    "distro~=1.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # tests deps
+    "coverage[toml] ~= 7.6",
+    "pyfakefs ~= 5.6.0",
+    "pytest ~= 7.2",
+    "pytest-order ~= 1.1",
+
+    # Linting
+    "ruff",
+    "codespell",
+    "pyright",
+]
+
+[project.urls]
+repository = "https://github.com/charmed-hpc/hpc-libs.git"
+issues = "https://github.com/charmed-hpc/hpc-libs/issues"
+
+
 # Testing tools configuration
 [tool.coverage.run]
 branch = true
+include = [
+    "src/**/*.py"
+]
+omit = [
+    "_apt.py"
+]
 
 [tool.coverage.report]
 show_missing = true
@@ -9,19 +84,15 @@ show_missing = true
 minversion = "6.0"
 log_cli_level = "INFO"
 
-# Formatting tools configuration
-[tool.black]
-line-length = 99
-target-version = ["py310"]
+# Spell checking tools configuration
+[tool.codespell]
+skip = "lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.pytest_cache,.vscode,.coverage,.venv,cover,_apt.py"
 
 # Linting tools configuration
 [tool.ruff]
 line-length = 99
-extend-exclude = ["__pycache__", "*.egg_info"]
-
-[tool.ruff.lint]
-select = ["E", "W", "F", "C", "N", "D", "I001"]
-extend-ignore = [
+lint.select = ["E", "W", "F", "C", "N", "D", "I001"]
+lint.extend-ignore = [
     "D203",
     "D204",
     "D213",
@@ -34,12 +105,19 @@ extend-ignore = [
     "D409",
     "D413",
 ]
-ignore = ["E501", "D107"]
-per-file-ignores = {"tests/*" = ["D100","D101","D102","D103","D104"]}
-mccabe = { "max-complexity" = 10}
+lint.ignore = ["E501", "D107"]
+lint.per-file-ignores = { "**/tests/*" = [
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+] }
+extend-exclude = ["__pycache__", "*.egg_info"]
 
-[tool.codespell]
-skip = "build,lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage"
+[tool.ruff.lint.mccabe]
+max-complexity = 15
 
 [tool.pyright]
-include = ["lib/charms/hpc_libs/**", "src/**.py"]
+include = ["src/*"]
+exclude = ["**/_apt.py"]

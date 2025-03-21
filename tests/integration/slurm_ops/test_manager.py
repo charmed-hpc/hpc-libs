@@ -6,7 +6,7 @@ import base64
 from pathlib import Path
 
 import pytest
-from charms.hpc_libs.v0.slurm_ops import SlurmctldManager
+from hpc_libs.slurm_ops import SlurmctldManager
 
 
 @pytest.fixture

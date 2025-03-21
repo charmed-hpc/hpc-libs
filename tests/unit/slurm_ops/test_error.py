@@ -8,11 +8,11 @@ import subprocess
 from unittest import TestCase
 from unittest.mock import patch
 
-from charms.hpc_libs.v0.slurm_ops import SlurmOpsError
+from hpc_libs.slurm_ops import SlurmOpsError
 
 
 @patch(
-    "charms.hpc_libs.v0.slurm_ops.subprocess.run",
+    "hpc_libs.slurm_ops.subprocess.run",
     return_value=subprocess.CompletedProcess([], returncode=0),
 )
 class TestSlurmOpsError(TestCase):

@@ -22,7 +22,7 @@ for identifying the virtualization runtime for a charmed operator.
 ### Example Usage:
 
 ```python3
-from charms.hpc_libs.v0.is_container import is_container
+from hpc_libs.is_container import is_container
 
 class ApplicationCharm(CharmBase):
 
@@ -42,16 +42,6 @@ class ApplicationCharm(CharmBase):
 
 import shutil
 import subprocess
-
-# The unique Charmhub library identifier, never change it
-LIBID = "eb95ad73da1941c0af186ee670f96507"
-
-# Increment this major API version when introducing breaking changes
-LIBAPI = 0
-
-# Increment this PATCH version before using `charmcraft publish-lib` or reset
-# to 0 if you are raising the major API version
-LIBPATCH = 1
 
 
 class UnknownVirtStateError(Exception):

@@ -7,13 +7,13 @@
 import subprocess
 from unittest.mock import patch
 
-from charms.hpc_libs.v0.slurm_ops import SlurmOpsError, _SnapManager
+from hpc_libs.slurm_ops import SlurmOpsError, _SnapManager
 from constants import SNAP_SLURM_INFO, SNAP_SLURM_INFO_NOT_INSTALLED
 from pyfakefs.fake_filesystem_unittest import TestCase
 
 
 @patch(
-    "charms.hpc_libs.v0.slurm_ops.subprocess.run",
+    "hpc_libs.slurm_ops.subprocess.run",
     return_value=subprocess.CompletedProcess([], returncode=0),
 )
 class TestSnapPackageManager(TestCase):

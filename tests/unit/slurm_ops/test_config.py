@@ -8,7 +8,7 @@ import stat
 from pathlib import Path
 
 import dotenv
-from charms.hpc_libs.v0.slurm_ops import (
+from hpc_libs.slurm_ops import (
     SackdManager,
     SlurmctldManager,
     SlurmdbdManager,
