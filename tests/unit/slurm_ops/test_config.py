@@ -8,12 +8,6 @@ import stat
 from pathlib import Path
 
 import dotenv
-from hpc_libs.slurm_ops import (
-    SackdManager,
-    SlurmctldManager,
-    SlurmdbdManager,
-    SlurmdManager,
-)
 from constants import (
     EXAMPLE_ACCT_GATHER_CONFIG,
     EXAMPLE_CGROUP_CONFIG,
@@ -26,6 +20,13 @@ from constants import (
     FAKE_USER_UID,
 )
 from pyfakefs.fake_filesystem_unittest import TestCase
+
+from hpc_libs.slurm_ops import (
+    SackdManager,
+    SlurmctldManager,
+    SlurmdbdManager,
+    SlurmdManager,
+)
 
 
 class TestConfigManagement(TestCase):
@@ -119,29 +120,63 @@ class TestConfigManagement(TestCase):
 
         with self.slurmctld.gres.edit() as config:
             self.assertEqual(config.auto_detect, "nvml")
-            self.assertListEqual(
-                config.names,
-                [
-                    {"Name": "gpu", "Type": "gp100", "File": "/dev/nvidia0", "Cores": ["0", "1"]},
-                    {"Name": "gpu", "Type": "gp100", "File": "/dev/nvidia1", "Cores": ["0", "1"]},
-                    {"Name": "gpu", "Type": "p6000", "File": "/dev/nvidia2", "Cores": ["2", "3"]},
-                    {"Name": "gpu", "Type": "p6000", "File": "/dev/nvidia3", "Cores": ["2", "3"]},
-                    {"Name": "mps", "Count": "200", "File": "/dev/nvidia0"},
-                    {"Name": "mps", "Count": "200", "File": "/dev/nvidia1"},
-                    {"Name": "mps", "Count": "100", "File": "/dev/nvidia2"},
-                    {"Name": "mps", "Count": "100", "File": "/dev/nvidia3"},
-                    {"Name": "bandwidth", "Type": "lustre", "Count": "4G", "Flags": ["CountOnly"]},
-                ],
+            self.assertDictEqual(
+                config.names.dict(),
+                {
+                    "gpu": [
+                        {
+                            "Name": "gpu",
+                            "Type": "gp100",
+                            "File": "/dev/nvidia0",
+                            "Cores": ["0", "1"],
+                        },
+                        {
+                            "Name": "gpu",
+                            "Type": "gp100",
+                            "File": "/dev/nvidia1",
+                            "Cores": ["0", "1"],
+                        },
+                        {
+                            "Name": "gpu",
+                            "Type": "p6000",
+                            "File": "/dev/nvidia2",
+                            "Cores": ["2", "3"],
+                        },
+                        {
+                            "Name": "gpu",
+                            "Type": "p6000",
+                            "File": "/dev/nvidia3",
+                            "Cores": ["2", "3"],
+                        },
+                    ],
+                    "mps": [
+                        {"Name": "mps", "Count": "200", "File": "/dev/nvidia0"},
+                        {"Name": "mps", "Count": "200", "File": "/dev/nvidia1"},
+                        {"Name": "mps", "Count": "100", "File": "/dev/nvidia2"},
+                        {"Name": "mps", "Count": "100", "File": "/dev/nvidia3"},
+                    ],
+                    "bandwidth": [
+                        {
+                            "Name": "bandwidth",
+                            "Type": "lustre",
+                            "Count": "4G",
+                            "Flags": ["CountOnly"],
+                        },
+                    ],
+                },
             )
             self.assertDictEqual(
-                config.nodes,
+                config.nodes.dict(),
                 {
-                    "juju-c9c6f-[1-10]": {
-                        "Name": "gpu",
-                        "Type": "rtx",
-                        "File": "/dev/nvidia[0-3]",
-                        "Count": "8G",
-                    }
+                    "juju-c9c6f-[1-10]": [
+                        {
+                            "NodeName": "juju-c9c6f-[1-10]",
+                            "Name": "gpu",
+                            "Type": "rtx",
+                            "File": "/dev/nvidia[0-3]",
+                            "Count": "8G",
+                        }
+                    ]
                 },
             )
 
