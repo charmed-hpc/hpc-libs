@@ -9,8 +9,8 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
-import charms.operator_libs_linux.v0.apt as apt
-from charms.hpc_libs.v0.slurm_ops import (
+import hpc_libs._apt as apt
+from hpc_libs.slurm_ops import (
     SackdManager,
     SlurmctldManager,
     SlurmdbdManager,
@@ -23,7 +23,7 @@ from pyfakefs.fake_filesystem_unittest import TestCase
 
 
 @patch(
-    "charms.hpc_libs.v0.slurm_ops.subprocess.run",
+    "hpc_libs.slurm_ops.subprocess.run",
     return_value=subprocess.CompletedProcess([], returncode=0),
 )
 class TestAptPackageManager(TestCase):
@@ -64,22 +64,22 @@ class TestAptPackageManager(TestCase):
         with self.assertRaises(SlurmOpsError):
             self.slurmctld.version()
 
-    @patch("charms.operator_libs_linux.v0.apt.DebianRepository._get_keyid_by_gpg_key")
-    @patch("charms.operator_libs_linux.v0.apt.DebianRepository._dearmor_gpg_key")
-    @patch("charms.operator_libs_linux.v0.apt.DebianRepository._write_apt_gpg_keyfile")
-    @patch("charms.operator_libs_linux.v0.apt.RepositoryMapping.add")
+    @patch("hpc_libs._apt.DebianRepository._get_keyid_by_gpg_key")
+    @patch("hpc_libs._apt.DebianRepository._dearmor_gpg_key")
+    @patch("hpc_libs._apt.DebianRepository._write_apt_gpg_keyfile")
+    @patch("hpc_libs._apt.RepositoryMapping.add")
     @patch("distro.codename")
     def test_init_ubuntu_hpc_ppa(self, *_) -> None:
         """Test that Ubuntu HPC repositories are initialized correctly."""
         self.slurmctld._ops_manager._init_ubuntu_hpc_ppa()
 
-    @patch("charms.operator_libs_linux.v0.apt.DebianRepository._get_keyid_by_gpg_key")
-    @patch("charms.operator_libs_linux.v0.apt.DebianRepository._dearmor_gpg_key")
-    @patch("charms.operator_libs_linux.v0.apt.DebianRepository._write_apt_gpg_keyfile")
-    @patch("charms.operator_libs_linux.v0.apt.RepositoryMapping.add")
+    @patch("hpc_libs._apt.DebianRepository._get_keyid_by_gpg_key")
+    @patch("hpc_libs._apt.DebianRepository._dearmor_gpg_key")
+    @patch("hpc_libs._apt.DebianRepository._write_apt_gpg_keyfile")
+    @patch("hpc_libs._apt.RepositoryMapping.add")
     @patch("distro.codename")
     @patch(
-        "charms.operator_libs_linux.v0.apt.update",
+        "hpc_libs._apt.update",
         side_effect=subprocess.CalledProcessError(1, ["apt-get", "update", "--error-any"]),
     )
     def test_init_ubuntu_hpc_ppa_fail(self, *_) -> None:
@@ -96,7 +96,7 @@ class TestAptPackageManager(TestCase):
         f_info = target.stat()
         self.assertEqual(stat.filemode(f_info.st_mode), "-rw-r--r--")
 
-    @patch("charms.operator_libs_linux.v0.apt.add_package")
+    @patch("hpc_libs._apt.add_package")
     def test_install_service(self, add_package, *_) -> None:
         """Test that `_install_service` installs the correct packages for each service."""
         self.sackd._ops_manager._install_service()
@@ -191,9 +191,9 @@ class TestAptPackageManager(TestCase):
         self.slurmdbd._ops_manager._apply_overrides()
         self.assertListEqual(args, ["systemctl", "daemon-reload"])
 
-    @patch("charms.hpc_libs.v0.slurm_ops._AptManager._init_ubuntu_hpc_ppa")
-    @patch("charms.hpc_libs.v0.slurm_ops._AptManager._install_service")
-    @patch("charms.hpc_libs.v0.slurm_ops._AptManager._apply_overrides")
+    @patch("hpc_libs.slurm_ops._AptManager._init_ubuntu_hpc_ppa")
+    @patch("hpc_libs.slurm_ops._AptManager._install_service")
+    @patch("hpc_libs.slurm_ops._AptManager._apply_overrides")
     @patch("shutil.chown")
     def test_install(self, *_) -> None:
         """Test public `install` method that encapsulates service install logic."""

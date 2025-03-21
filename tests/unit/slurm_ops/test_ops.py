@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
-from charms.hpc_libs.v0.slurm_ops import (
+from hpc_libs.slurm_ops import (
     SlurmOpsError,
     _ServiceType,
     _SlurmManagerBase,
@@ -25,7 +25,7 @@ from pyfakefs.fake_filesystem_unittest import TestCase
 
 
 @patch(
-    "charms.hpc_libs.v0.slurm_ops.subprocess.run",
+    "hpc_libs.slurm_ops.subprocess.run",
     return_value=subprocess.CompletedProcess([], returncode=0),
 )
 class SlurmOpsBase:
@@ -128,7 +128,7 @@ class SlurmOpsBase:
         self.manager.jwt.generate()
         self.assertNotEqual(self.manager.jwt.get(), JWT_KEY)
 
-    @patch("charms.hpc_libs.v0.slurm_ops.socket.gethostname")
+    @patch("hpc_libs.slurm_ops.socket.gethostname")
     def test_hostname(self, gethostname, *_) -> None:
         """Test that manager is able to correctly get the host name."""
         gethostname.return_value = "machine"

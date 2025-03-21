@@ -17,11 +17,6 @@
 This library contains manager classes that provide high-level interfaces
 for managing Slurm operations within charmed operators.
 
-### Note
-
-This charm library depends on the `charms.operator_libs_linux.v0.apt` charm library, which can
-be imported by running `charmcraft fetch-lib charms.operator_libs_linux.v0.apt`.
-
 ### Example Usage
 
 #### Managing the `slurmctld` service
@@ -31,7 +26,7 @@ You can pass the boolean keyword argument `snap=True` or `snap=False` to instruc
 `SlurmctldManager` to either use the Slurm snap package or Debian package respectively.
 
 ```python3
-from charms.hpc_libs.v0.slurm_ops import SlurmctldManager
+from hpc_libs.slurm_ops import SlurmctldManager
 
 
 class ApplicationCharm(CharmBase):
@@ -49,15 +44,6 @@ class ApplicationCharm(CharmBase):
             config.cluster_name = "cluster"
 ```
 """
-
-__all__ = [
-    "SackdManager",
-    "SlurmOpsError",
-    "SlurmctldManager",
-    "SlurmdManager",
-    "SlurmdbdManager",
-    "SlurmrestdManager",
-]
 
 import logging
 import os
@@ -94,33 +80,7 @@ from slurmutils.models import (
 )
 from slurmutils.models.model import BaseModel
 
-try:
-    import charms.operator_libs_linux.v0.apt as apt
-except ImportError as e:
-    raise ImportError(
-        "`slurm_ops` requires the `charms.operator_libs_linux.v0.apt` charm library to work",
-        name=e.name,
-        path=e.path,
-    )
-
-# The unique Charmhub library identifier, never change it
-LIBID = "541fd767f90b40539cf7cd6e7db8fabf"
-
-# Increment this major API version when introducing breaking changes
-LIBAPI = 0
-
-# Increment this PATCH version before using `charmcraft publish-lib` or reset
-# to 0 if you are raising the major API version
-LIBPATCH = 18
-
-# Charm library dependencies to fetch during `charmcraft pack`.
-PYDEPS = [
-    "cryptography~=44.0.1",
-    "pyyaml>=6.0.2",
-    "python-dotenv~=1.0.1",
-    "slurmutils<1.0.0,>=0.11.0",
-    "distro~=1.9.0",
-]
+import hpc_libs._apt as apt
 
 _logger = logging.getLogger(__name__)
 

@@ -7,13 +7,12 @@
 from unittest import TestCase
 from unittest.mock import patch
 
-from charms.hpc_libs.v0.is_container import UnknownVirtStateError, is_container
+from hpc_libs.is_container import UnknownVirtStateError, is_container
 
 
-@patch("charms.hpc_libs.v0.is_container.shutil.which", return_value="/usr/bin/systemd-detect-virt")
-@patch("charms.hpc_libs.v0.is_container.subprocess.run")
+@patch("hpc_libs.is_container.shutil.which", return_value="/usr/bin/systemd-detect-virt")
+@patch("hpc_libs.is_container.subprocess.run")
 class TestIsContainer(TestCase):
-
     def test_inside_container(self, run, _) -> None:
         """Test that `is_container` returns True when inside a container."""
         run.return_value.returncode = 0
