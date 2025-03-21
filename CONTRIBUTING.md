@@ -163,19 +163,19 @@ the charm libraries:
 
     ```bash
     # Apply formatting standards to code.
-    tox run -e fmt
+    just fmt
 
     # Check code against coding style standards.
-    tox run -e lint
+    just lint
 
     # Run static type checks.
-    tox run -e static
+    just typecheck
 
     # Run unit tests.
-    tox run -e unit
+    just unit
 
     # Run integration tests.
-    tox run -e integration
+    just integration
     ```
 
 5. Commit your changes in logical chunks to your topic branch.
