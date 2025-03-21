@@ -6,6 +6,7 @@ import base64
 from pathlib import Path
 
 import pytest
+
 from hpc_libs.slurm_ops import SlurmctldManager
 
 

@@ -8,11 +8,6 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
-from hpc_libs.slurm_ops import (
-    SlurmOpsError,
-    _ServiceType,
-    _SlurmManagerBase,
-)
 from constants import (
     FAKE_GROUP_NAME,
     FAKE_USER_NAME,
@@ -22,6 +17,12 @@ from constants import (
     SNAP_SLURM_INFO_NOT_INSTALLED,
 )
 from pyfakefs.fake_filesystem_unittest import TestCase
+
+from hpc_libs.slurm_ops import (
+    SlurmOpsError,
+    _ServiceType,
+    _SlurmManagerBase,
+)
 
 
 @patch(

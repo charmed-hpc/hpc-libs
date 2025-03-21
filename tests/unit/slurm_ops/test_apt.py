@@ -9,6 +9,9 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
+from constants import APT_SLURM_INFO, ULIMIT_CONFIG
+from pyfakefs.fake_filesystem_unittest import TestCase
+
 import hpc_libs._apt as apt
 from hpc_libs.slurm_ops import (
     SackdManager,
@@ -18,8 +21,6 @@ from hpc_libs.slurm_ops import (
     SlurmOpsError,
     SlurmrestdManager,
 )
-from constants import APT_SLURM_INFO, ULIMIT_CONFIG
-from pyfakefs.fake_filesystem_unittest import TestCase
 
 
 @patch(

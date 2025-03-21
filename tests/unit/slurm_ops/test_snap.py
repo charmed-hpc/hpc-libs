@@ -7,9 +7,10 @@
 import subprocess
 from unittest.mock import patch
 
-from hpc_libs.slurm_ops import SlurmOpsError, _SnapManager
 from constants import SNAP_SLURM_INFO, SNAP_SLURM_INFO_NOT_INSTALLED
 from pyfakefs.fake_filesystem_unittest import TestCase
+
+from hpc_libs.slurm_ops import SlurmOpsError, _SnapManager
 
 
 @patch(
