@@ -20,23 +20,25 @@ acts:
     name: "Test the is_container library"
     run-on: noble
     input:
-      - host-path: lib
-        path: lib
-      - host-path: dev-requirements.txt
-        path: dev-requirements.txt
+      - host-path: src
+        path: src
+      - host-path: pyproject.toml
+        path: pyproject.toml
+      - host-path: uv.lock
+        path: uv.lock
+      - host-path: README.md
+        path: README.md
       - host-path: tests/integration/is_container
         path: is_container
     scenes:
       - name: "Install dependencies in a virtual environment"
         run: |
           export DEBIAN_FRONTEND=noninteractive
-          apt update
-          apt install -y python3-venv python3-yaml
-          python3 -m venv venv --system-site-packages
-          venv/bin/python3 -m pip install -r dev-requirements.txt
+          sudo snap refresh
+          sudo snap install astral-uv --classic
       - name: "Run `is_container` integration tests"
         run: |
-          venv/bin/python3 -m pytest -v \
+          uv run --frozen --extra dev -m pytest -v \
             -s \
             --tb native \
             --log-cli-level=INFO \
@@ -45,20 +47,22 @@ acts:
     name: "Test the slurm_ops library (snap)"
     run-on: noble
     input:
-      - host-path: lib
-        path: lib
-      - host-path: dev-requirements.txt
-        path: dev-requirements.txt
+      - host-path: src
+        path: src
+      - host-path: pyproject.toml
+        path: pyproject.toml
+      - host-path: uv.lock
+        path: uv.lock
+      - host-path: README.md
+        path: README.md
       - host-path: tests/integration/slurm_ops
         path: slurm_ops
     scenes:
       - name: "Install dependencies in a virtual environment"
         run: |
           export DEBIAN_FRONTEND=noninteractive
-          apt update
-          apt install -y python3-venv python3-yaml
-          python3 -m venv venv --system-site-packages
-          venv/bin/python3 -m pip install -r dev-requirements.txt
+          sudo snap refresh
+          sudo snap install astral-uv --classic
       - name: "Create slurm user"
         run: |
           groupadd --gid 64030 slurm
@@ -67,8 +71,7 @@ acts:
             --no-create-home --home /nonexistent slurm
       - name: "Run `slurm_ops` integration tests"
         run: |
-          PYTHONPATH=./lib \
-          venv/bin/python3 -m pytest -vv \
+          uv run --frozen --extra dev -m pytest -v \
             -s \
             --tb native \
             --log-cli-level=INFO \
@@ -78,24 +81,25 @@ acts:
     name: "Test the slurm_ops library (apt)"
     run-on: noble
     input:
-      - host-path: lib
-        path: lib
-      - host-path: dev-requirements.txt
-        path: dev-requirements.txt
+      - host-path: src
+        path: src
+      - host-path: pyproject.toml
+        path: pyproject.toml
+      - host-path: uv.lock
+        path: uv.lock
+      - host-path: README.md
+        path: README.md
       - host-path: tests/integration/slurm_ops
         path: slurm_ops
     scenes:
       - name: "Install dependencies in a virtual environment"
         run: |
           export DEBIAN_FRONTEND=noninteractive
-          apt update
-          apt install -y python3-venv python3-yaml
-          python3 -m venv venv --system-site-packages
-          venv/bin/python3 -m pip install -r dev-requirements.txt
+          sudo snap refresh
+          sudo snap install astral-uv --classic
       - name: "Run `slurm_ops` integration tests"
         run: |
-          PYTHONPATH=./lib \
-          venv/bin/python3 -m pytest -v \
+          uv run --frozen --extra dev -m pytest -v \
             -s \
             --tb native \
             --log-cli-level=INFO \
