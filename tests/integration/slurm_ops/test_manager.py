@@ -3,6 +3,7 @@
 # See LICENSE file for licensing details.
 
 import base64
+import time
 from pathlib import Path
 
 import pytest
@@ -19,20 +20,20 @@ def slurmctld(snap: bool) -> SlurmctldManager:
 def test_install(slurmctld: SlurmctldManager, etc_path: Path) -> None:
     """Install Slurm using the manager."""
     slurmctld.install()
-    slurmctld.munge.key.generate()
+    slurmctld.key.generate()
 
-    key: bytes = (etc_path / "munge" / "munge.key").read_bytes()
+    key: bytes = (etc_path / "slurm" / "slurm.key").read_bytes()
     key: str = base64.b64encode(key).decode()
 
-    assert key == slurmctld.munge.key.get()
+    assert key == slurmctld.key.get()
 
 
 @pytest.mark.order(2)
 def test_rotate_key(slurmctld: SlurmctldManager) -> None:
-    """Test that the munge key can be rotated."""
-    old_key = slurmctld.munge.key.get()
-    slurmctld.munge.key.generate()
-    new_key = slurmctld.munge.key.get()
+    """Test that the slurm key can be rotated."""
+    old_key = slurmctld.key.get()
+    slurmctld.key.generate()
+    new_key = slurmctld.key.get()
     assert old_key != new_key
 
 
@@ -41,9 +42,11 @@ def test_slurm_config(slurmctld: SlurmctldManager) -> None:
     """Test that the slurm config can be changed."""
     with slurmctld.config.edit() as config:
         config.slurmctld_host = [slurmctld.hostname]
-        Path("/var/lib/slurm/checkpoint").mkdir(mode=0o755, parents=True, exist_ok=True)
-        config.state_save_location = "/var/lib/slurm/checkpoint"
+        config.state_save_location = slurmctld._ops_manager.var_lib_path / "checkpoint"
         config.cluster_name = "test-cluster"
+        config.auth_type = "auth/slurm"
+        config.cred_type = "cred/slurm"
+        config.slurm_user = "slurm"
 
     for line in str(slurmctld.config.load()).splitlines():
         entry = line.split("=")
@@ -54,12 +57,23 @@ def test_slurm_config(slurmctld: SlurmctldManager) -> None:
             assert value == "test-cluster"
         if key == "SlurmctldHost":
             assert value == slurmctld.hostname
+        if key == "AuthType":
+            assert value == "auth/slurm"
+        if key == "CredType":
+            assert value == "cred/slurm"
+        if key == "SlurmUser":
+            assert value == "slurm"
 
 
 @pytest.mark.order(4)
 def test_enable_service(slurmctld: SlurmctldManager) -> None:
     """Test that the slurmctld daemon can be started."""
     slurmctld.service.start()
+
+    # The service is always active immediately after start, so wait a couple of seconds
+    # to catch any delayed errors.
+    time.sleep(5)
+
     assert slurmctld.service.active()
 
 

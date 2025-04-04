@@ -4,6 +4,7 @@
 
 """Unit tests for Slurm service operations managers."""
 
+import base64
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -12,7 +13,7 @@ from constants import (
     FAKE_GROUP_NAME,
     FAKE_USER_NAME,
     JWT_KEY,
-    MUNGEKEY_BASE64,
+    SLURM_KEY_BASE64,
     SNAP_SLURM_INFO,
     SNAP_SLURM_INFO_NOT_INSTALLED,
 )
@@ -36,6 +37,7 @@ class SlurmOpsBase:
         self.setUpPyfakefs()
         self.fs.create_file("/var/snap/slurm/common/.env")
         self.fs.create_file("/var/snap/slurm/common/var/lib/slurm/slurm.state/jwt_hs256.key")
+        self.fs.create_file("/var/snap/slurm/common/etc/slurm/slurm.key")
 
         # pyfakefs inconsistently mocks JWTKeyManager so fake instead.
         self.manager.jwt._keyfile = Path(
@@ -44,6 +46,11 @@ class SlurmOpsBase:
         self.manager.jwt._user = FAKE_USER_NAME
         self.manager.jwt._group = FAKE_GROUP_NAME
         self.manager.jwt._keyfile.write_text(JWT_KEY)
+
+        self.manager.key._keyfile = Path("/var/snap/slurm/common/etc/slurm/slurm.key")
+        self.manager.key._user = FAKE_USER_NAME
+        self.manager.key._group = FAKE_GROUP_NAME
+        self.manager.key._keyfile.write_bytes(base64.b64decode(SLURM_KEY_BASE64.encode()))
 
     def test_config_name(self, *_) -> None:
         """Test that the config name is correctly set."""
@@ -89,31 +96,17 @@ class SlurmOpsBase:
         args = subcmd.call_args[0][0]
         self.assertEqual(args, ["snap", "info", "slurm"])
 
-    def test_generate_munge_key(self, subcmd, *_) -> None:
-        """Test that the manager calls the correct `mungectl` command."""
-        self.manager.munge.key.generate()
-        args = subcmd.call_args[0][0]
-        self.assertEqual(args, ["mungectl", "key", "generate"])
+    def test_slurm_key(self, *_) -> None:
+        """Test that the manager correctly manages the slurm key."""
+        key = self.manager.key.get()
+        self.assertEqual(key, SLURM_KEY_BASE64)
 
-    def test_set_munge_key(self, subcmd, *_) -> None:
-        """Test that the manager sets the munge key with the correct command."""
-        self.manager.munge.key.set(MUNGEKEY_BASE64)
-        args = subcmd.call_args[0][0]
-        # MUNGEKEY_BASE64 is piped to `stdin` to avoid exposure.
-        self.assertEqual(args, ["mungectl", "key", "set"])
+        self.manager.key.generate()
+        key = base64.b64encode(self.manager.key.path.read_bytes()).decode()
+        self.assertEqual(self.manager.key.get(), key)
 
-    def test_get_munge_key(self, subcmd, *_) -> None:
-        """Test that the manager gets the munge key with the correct command."""
-        subcmd.return_value = subprocess.CompletedProcess([], returncode=0, stdout=MUNGEKEY_BASE64)
-        key = self.manager.munge.key.get()
-        args = subcmd.call_args[0][0]
-        self.assertEqual(args, ["mungectl", "key", "get"])
-        self.assertEqual(key, MUNGEKEY_BASE64)
-
-    def test_configure_munge(self, *_) -> None:
-        """Test that manager is able to correctly configure munge."""
-        self.manager.munge.max_thread_count = 24
-        self.assertEqual(self.manager.munge.max_thread_count, 24)
+        self.manager.key.set(SLURM_KEY_BASE64)
+        self.assertEqual(self.manager.key.get(), SLURM_KEY_BASE64)
 
     def test_get_jwt_key(self, *_) -> None:
         """Test that the jwt key is properly retrieved."""

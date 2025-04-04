@@ -45,8 +45,10 @@ class ApplicationCharm(CharmBase):
 ```
 """
 
+import base64
 import logging
 import os
+import secrets
 import shlex
 import shutil
 import socket
@@ -140,19 +142,9 @@ def _systemctl(*args) -> str:
     return _call("systemctl", *args).stdout
 
 
-def _mungectl(*args, stdin: Optional[str] = None) -> str:
-    """Control munge via `mungectl ...` commands.
-
-    Raises:
-        SlurmOpsError: Raised if mungectl command fails.
-    """
-    return _call("mungectl", *args, stdin=stdin).stdout
-
-
 class _ServiceType(Enum):
     """Type of Slurm service to manage."""
 
-    MUNGE = "munge"
     PROMETHEUS_EXPORTER = "prometheus-slurm-exporter"
     SACKD = "sackd"
     SLURMD = "slurmd"
@@ -518,11 +510,8 @@ class _SnapManager(_OpsManager):
         # TODO: https://github.com/charmed-hpc/hpc-libs/issues/35 -
         #   Pin Slurm snap to stable channel.
         _snap("install", "slurm", "--channel", "23.11/stable", "--classic")
-        # TODO: https://github.com/charmed-hpc/slurm-snap/issues/49 -
-        #   Request automatic alias for the Slurm snap so we don't need to do it here.
-        #   We will possibly need to account for a third-party Slurm snap installation
-        #   where aliasing is not automatically performed.
-        _snap("alias", "slurm.mungectl", "mungectl")
+        self._create_state_save_location()
+        self._apply_overrides()
 
     def version(self) -> str:
         """Get the current version of the `slurm` snap installed on the system."""
@@ -550,6 +539,26 @@ class _SnapManager(_OpsManager):
     def env_manager_for(self, service: _ServiceType) -> _EnvManager:
         """Return the `_EnvManager` for the specified `ServiceType`."""
         return _EnvManager(file="/var/snap/slurm/common/.env")
+
+    def _create_state_save_location(self) -> None:
+        """Create `StateSaveLocation` for Slurm services.
+
+        Notes:
+            `StateSaveLocation` is used by slurmctld, slurmd, and slurmdbd
+            to checkpoint runtime information should a service crash, and it
+            serves as the location where the JWT token used to generate user
+            access tokens is stored as well.
+        """
+        _logger.debug("creating slurm `StateSaveLocation` directory")
+        target = self.var_lib_path / "checkpoint"
+        target.mkdir(mode=0o755, parents=True, exist_ok=True)
+        self.var_lib_path.chmod(0o755)
+        shutil.chown(self.var_lib_path, "slurm", "slurm")
+        shutil.chown(target, "slurm", "slurm")
+
+    def _apply_overrides(self) -> None:
+        """Override defaults provided by the Slurm snap."""
+        _snap("stop", "--disable", "slurm.munged")
 
 
 class _AptManager(_OpsManager):
@@ -682,7 +691,7 @@ class _AptManager(_OpsManager):
         Raises:
             SlurmOpsError: Raised if `apt` fails to install the required Slurm packages.
         """
-        packages = [self._service_name, "munge", "mungectl"]
+        packages = [self._service_name]
         match self._service_name:
             case "sackd":
                 packages.extend(["slurm-client"])
@@ -777,6 +786,7 @@ class _AptManager(_OpsManager):
                         """
                     )
                 )
+                _systemctl("disable", "--now", "munge")
             case "slurmd":
                 _logger.debug("overriding default slurmd service configuration")
                 self._set_ulimit()
@@ -825,6 +835,7 @@ class _AptManager(_OpsManager):
                         """
                     )
                 )
+                _systemctl("disable", "--now", "munge")
             case "slurmrestd":
                 # TODO: https://github.com/charmed-hpc/hpc-libs/issues/39 -
                 #   Make `slurmrestd` package preinst hook create the system user and group
@@ -866,7 +877,7 @@ class _AptManager(_OpsManager):
                         """
                         [Unit]
                         Description=Slurm REST daemon
-                        After=network.target munge.service slurmctld.service
+                        After=network.target slurmctld.service
                         ConditionPathExists=/etc/slurm/slurm.conf
                         Documentation=man:slurmrestd(8)
 
@@ -935,41 +946,34 @@ class _JWTKeyManager:
         )
 
 
-# TODO: https://github.com/charmed-hpc/mungectl/issues/5 -
-#   Have `mungectl` set user and group permissions on the munge.key file.
-class _MungeKeyManager:
-    """Control the munge key via `mungectl ...` commands."""
+class _SlurmKeyManager:
+    """Control the shared key used by Slurm."""
 
-    @staticmethod
-    def get() -> str:
-        """Get the current munge key.
+    def __init__(self, ops_manager: _OpsManager, user: str, group: str) -> None:
+        self._keyfile = ops_manager.etc_path / "slurm.key"
+        self._user = user
+        self._group = group
 
-        Returns:
-            The current munge key as a base64-encoded string.
-        """
-        return _mungectl("key", "get")
+    @property
+    def path(self) -> Path:
+        """Get the current slurm keyfile path."""
+        return self._keyfile
 
-    @staticmethod
-    def set(key: str) -> None:
-        """Set a new munge key.
+    def get(self) -> str:
+        """Get the current slurm key."""
+        return base64.b64encode(self._keyfile.read_bytes()).decode()
 
-        Args:
-            key: A new, base64-encoded munge key.
-        """
-        _mungectl("key", "set", stdin=key)
+    def set(self, key: str) -> None:
+        """Set a new slurm key."""
+        self._keyfile.write_bytes(base64.b64decode(key.encode()))
+        self._keyfile.chmod(0o600)
+        shutil.chown(self._keyfile, self._user, self._group)
 
-    @staticmethod
-    def generate() -> None:
-        """Generate a new, cryptographically secure munge key."""
-        _mungectl("key", "generate")
+    def generate(self) -> None:
+        """Generate a new, cryptographically secure slurm key."""
+        key = secrets.token_bytes(2048)
 
-
-class _MungeManager:
-    """Manage `munged` service operations."""
-
-    def __init__(self, ops_manager: _OpsManager) -> None:
-        self.service = ops_manager.service_manager_for(_ServiceType.MUNGE)
-        self.key = _MungeKeyManager()
+        self.set(base64.b64encode(key).decode())
 
 
 class _PrometheusExporterManager:
@@ -1004,7 +1008,7 @@ class _SlurmManagerBase:
     def __init__(self, service: _ServiceType, snap: bool = False) -> None:
         self._ops_manager = _SnapManager() if snap else _AptManager(service)
         self.service = self._ops_manager.service_manager_for(service)
-        self.munge = _MungeManager(self._ops_manager)
+        self.key = _SlurmKeyManager(self._ops_manager, self.user, self.group)
         self.jwt = _JWTKeyManager(self._ops_manager, self.user, self.group)
         self.exporter = _PrometheusExporterManager(self._ops_manager)
         self.install = self._ops_manager.install
