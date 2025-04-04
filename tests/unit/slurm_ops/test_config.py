@@ -274,7 +274,7 @@ class TestConfigManagement(TestCase):
         self.slurmdbd.config._group = FAKE_GROUP_NAME
 
         with self.slurmdbd.config.edit() as config:
-            self.assertEqual(config.auth_type, "auth/munge")
+            self.assertEqual(config.auth_type, "auth/slurm")
             self.assertEqual(config.debug_level, "info")
 
             config.storage_pass = "newpass"

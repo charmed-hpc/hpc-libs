@@ -105,8 +105,6 @@ class TestAptPackageManager(TestCase):
             add_package.call_args[0][0],
             [
                 "sackd",
-                "munge",
-                "mungectl",
                 "slurm-client",
             ],
         )
@@ -116,8 +114,6 @@ class TestAptPackageManager(TestCase):
             add_package.call_args[0][0],
             [
                 "slurmctld",
-                "munge",
-                "mungectl",
                 "libpmix-dev",
                 "mailutils",
                 "prometheus-slurm-exporter",
@@ -129,8 +125,6 @@ class TestAptPackageManager(TestCase):
             add_package.call_args[0][0],
             [
                 "slurmd",
-                "munge",
-                "mungectl",
                 "slurm-client",
                 "libpmix-dev",
                 "openmpi-bin",
@@ -140,7 +134,7 @@ class TestAptPackageManager(TestCase):
         self.slurmdbd._ops_manager._install_service()
         self.assertListEqual(
             add_package.call_args[0][0],
-            ["slurmdbd", "munge", "mungectl"],
+            ["slurmdbd"],
         )
 
         self.slurmrestd._ops_manager._install_service()
@@ -148,8 +142,6 @@ class TestAptPackageManager(TestCase):
             add_package.call_args[0][0],
             [
                 "slurmrestd",
-                "munge",
-                "mungectl",
                 "slurm-wlm-basic-plugins",
             ],
         )

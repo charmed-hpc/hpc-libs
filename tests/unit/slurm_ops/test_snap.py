@@ -4,7 +4,9 @@
 
 """Unit tests for `snap` operations manager."""
 
+import stat
 import subprocess
+from pathlib import Path
 from unittest.mock import patch
 
 from constants import SNAP_SLURM_INFO, SNAP_SLURM_INFO_NOT_INSTALLED
@@ -23,12 +25,19 @@ class TestSnapPackageManager(TestCase):
         self.manager = _SnapManager()
         self.fs.create_file("/var/snap/slurm/common/.env")
 
-    def test_install(self, subcmd) -> None:
+    @patch("hpc_libs.slurm_ops._SnapManager._apply_overrides")
+    @patch("shutil.chown")
+    def test_install(self, _apply_overrides, _shutil, subcmd, *_) -> None:
         """Test that `slurm_ops` calls the correct install command."""
         self.manager.install()
         args = subcmd.call_args_list[0][0][0]
         self.assertEqual(args[:3], ["snap", "install", "slurm"])
         self.assertIn("--classic", args[3:])
+
+        f_info = Path("/var/snap/slurm/common/var/lib/slurm").stat()
+        self.assertEqual(stat.filemode(f_info.st_mode), "drwxr-xr-x")
+        f_info = Path("/var/snap/slurm/common/var/lib/slurm/checkpoint").stat()
+        self.assertEqual(stat.filemode(f_info.st_mode), "drwxr-xr-x")
 
     def test_version(self, subcmd) -> None:
         """Test that `slurm_ops` gets the correct version using the correct command."""

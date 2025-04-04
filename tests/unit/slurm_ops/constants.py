@@ -26,7 +26,6 @@ commands:
     - slurm.command2
 services:
     slurm.logrotate:                 oneshot, enabled, inactive
-    slurm.munged:                    simple, enabled, active
     slurm.slurm-prometheus-exporter: simple, disabled, inactive
     slurm.slurmctld:                 simple, disabled, active
     slurm.slurmd:                    simple, enabled, active
@@ -73,7 +72,7 @@ ULIMIT_CONFIG = """
 * hard stack unlimited
 """
 
-MUNGEKEY_BASE64 = b"MTIzNDU2Nzg5MA=="
+SLURM_KEY_BASE64 = "MTIzNDU2Nzg5MA=="
 
 JWT_KEY = """-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEAt3PLWkwUOeckDwyMpHgGqmOZhitC8KfOQY/zPWfo+up5RQXz
@@ -159,7 +158,7 @@ SlurmctldHost=juju-c9fc6f-0(10.152.28.20)
 SlurmctldHost=juju-c9fc6f-1(10.152.28.100)
 
 ClusterName=charmed-hpc
-AuthType=auth/munge
+AuthType=auth/slurm
 Epilog=/usr/local/slurm/epilog
 Prolog=/usr/local/slurm/prolog
 FirstJobId=65536
@@ -212,8 +211,8 @@ ArchiveSteps=no
 ArchiveTXN=no
 ArchiveUsage=no
 ArchiveScript=/usr/sbin/slurm.dbd.archive
-AuthInfo=/var/run/munge/munge.socket.2
-AuthType=auth/munge
+AuthInfo=use_client_ids
+AuthType=auth/slurm
 AuthAltTypes=auth/jwt
 AuthAltParameters=jwt_key=16549684561684@
 DbdHost=slurmdbd-0
