@@ -783,6 +783,8 @@ class _AptManager(_OpsManager):
                         [Service]
                         LimitMEMLOCK=infinity
                         LimitNOFILE=1048576
+                        Restart=on-failure
+                        RestartSec=10
                         """
                     )
                 )
