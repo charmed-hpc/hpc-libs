@@ -1,7 +1,6 @@
 # hpc-libs
 
 [![hpc-libs tests](https://github.com/charmed-hpc/hpc-libs/actions/workflows/ci.yaml/badge.svg)](https://github.com/charmed-hpc/hpc-libs/actions/workflows/ci.yaml)
-[![Release](https://github.com/charmed-hpc/hpc-libs/actions/workflows/release-libs.yaml/badge.svg)](https://github.com/charmed-hpc/hpc-libs/actions/workflows/release-libs.yaml)
 ![GitHub License](https://img.shields.io/github/license/charmed-hpc/hpc-libs)
 [![Matrix](https://img.shields.io/matrix/ubuntu-hpc%3Amatrix.org?logo=matrix&label=ubuntu-hpc)](https://matrix.to/#/#hpc:ubuntu.com)
 
