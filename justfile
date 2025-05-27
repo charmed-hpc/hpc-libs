@@ -45,6 +45,7 @@ upgrade:
 # Apply coding style standards to code
 fmt: lock
     {{uv_run}} ruff format
+    {{uv_run}} ruff check --fix
 
 # Check code against coding style standards
 lint fix="": lock
