@@ -71,11 +71,13 @@ from slurmutils import (
     CGroupConfig,
     GresConfig,
     Model,
+    OCIConfig,
     SlurmConfig,
     SlurmdbdConfig,
     acctgatherconfig,
     cgroupconfig,
     gresconfig,
+    ociconfig,
     slurmconfig,
     slurmdbdconfig,
 )
@@ -273,6 +275,26 @@ class _GRESConfigManager(_ConfigManager):
     def edit(self) -> Iterator[GresConfig]:
         """Edit the current `gres.conf` configuration file."""
         with gresconfig.edit(
+            self._config_path, mode=0o644, user=self._user, group=self._group
+        ) as config:
+            yield config
+
+
+class _OCIConfigManager(_ConfigManager):
+    """Control the `oci.conf` configuration file."""
+
+    def load(self) -> OCIConfig:
+        """Load the current `oci.conf` configuration file."""
+        return ociconfig.load(self._config_path)
+
+    def dump(self, config: OCIConfig) -> None:
+        """Dump new configuration into `oci.conf` configuration file."""
+        ociconfig.dump(config, self._config_path, mode=0o644, user=self._user, group=self._group)
+
+    @contextmanager
+    def edit(self) -> Iterator[OCIConfig]:
+        """Edit the current `oci.conf` configuration file."""
+        with ociconfig.edit(
             self._config_path, mode=0o644, user=self._user, group=self._group
         ) as config:
             yield config
@@ -1081,6 +1103,9 @@ class SlurmctldManager(_SlurmManagerBase):
         )
         self.gres = _GRESConfigManager(
             self._ops_manager.etc_path / "gres.conf", self.user, self.group
+        )
+        self.oci = _OCIConfigManager(
+            self._ops_manager.etc_path / "oci.conf", self.user, self.group
         )
 
 
