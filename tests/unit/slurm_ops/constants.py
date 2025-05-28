@@ -150,6 +150,17 @@ name=mps count=100 file=/dev/nvidia3
 name=bandwidth type=lustre count=4G flags=countonly
 """
 
+EXAMPLE_OCI_CONFIG = """#
+# `oci.conf` file generated at 2024-09-18 19:05:45.723019 by slurmutils.
+#
+ignorefileconfigjson=true
+envexclude="^(SLURM_CONF|SLURM_CONF_SERVER)="
+runtimeenvexclude="^(SLURM_CONF|SLURM_CONF_SERVER)="
+runtimerun="singularity exec --userns %r %@"
+runtimekill="kill -s SIGTERM %p"
+runtimedelete="kill -s SIGKILL %p"
+"""
+
 EXAMPLE_SLURM_CONFIG = """#
 # `slurm.conf` file generated at 2024-01-30 17:18:36.171652 by slurmutils.
 #

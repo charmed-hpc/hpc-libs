@@ -12,6 +12,7 @@ from constants import (
     EXAMPLE_ACCT_GATHER_CONFIG,
     EXAMPLE_CGROUP_CONFIG,
     EXAMPLE_GRES_CONFIG,
+    EXAMPLE_OCI_CONFIG,
     EXAMPLE_SLURM_CONFIG,
     EXAMPLE_SLURMDBD_CONFIG,
     FAKE_GROUP_GID,
@@ -155,7 +156,7 @@ class TestConfigManagement(TestCase):
                             "type": "rtx",
                             "file": "/dev/nvidia[0-3]",
                             "count": "8G",
-                        }
+                        },
                     ],
                     "mps": [
                         {"name": "mps", "count": 200, "file": "/dev/nvidia0"},
@@ -182,6 +183,31 @@ class TestConfigManagement(TestCase):
 
         # Ensure that permissions on the gres.conf file are correct.
         f_info = Path("/etc/slurm/gres.conf").stat()
+        self.assertEqual(stat.filemode(f_info.st_mode), "-rw-r--r--")
+        self.assertEqual(f_info.st_uid, FAKE_USER_UID)
+        self.assertEqual(f_info.st_gid, FAKE_GROUP_GID)
+
+    def test_slurmctld_manager_oci_config(self) -> None:
+        """Test `SlurmctldManager` `oci.conf` configuration file editor."""
+        self.fs.create_file("/etc/slurm/oci.conf", contents=EXAMPLE_OCI_CONFIG)
+
+        # Fake user and group that owns the `oci.conf` configuration file.
+        self.slurmctld.oci._user = FAKE_USER_NAME
+        self.slurmctld.oci._group = FAKE_GROUP_NAME
+
+        with self.slurmctld.oci.edit() as config:
+            self.assertTrue(config.ignore_file_config_json)
+            self.assertEqual(config.run_time_run, "singularity exec --userns %r %@")
+
+            config.ignore_file_config_json = False
+            config.run_time_run = "apptainer exec --userns %r %@"
+
+        config = self.slurmctld.oci.load()
+        self.assertFalse(config.ignore_file_config_json)
+        self.assertEqual(config.run_time_run, "apptainer exec --userns %r %@")
+
+        # Ensure that permissions on the `oci.conf` configuration file are correct.
+        f_info = Path("/etc/slurm/oci.conf").stat()
         self.assertEqual(stat.filemode(f_info.st_mode), "-rw-r--r--")
         self.assertEqual(f_info.st_uid, FAKE_USER_UID)
         self.assertEqual(f_info.st_gid, FAKE_GROUP_GID)
