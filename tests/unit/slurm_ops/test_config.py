@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2024 Canonical Ltd.
+# Copyright 2024-2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """Unit tests for Slurm configuration managers and descriptors."""
@@ -12,6 +12,7 @@ from constants import (
     EXAMPLE_ACCT_GATHER_CONFIG,
     EXAMPLE_CGROUP_CONFIG,
     EXAMPLE_GRES_CONFIG,
+    EXAMPLE_OCI_CONFIG,
     EXAMPLE_SLURM_CONFIG,
     EXAMPLE_SLURMDBD_CONFIG,
     FAKE_GROUP_GID,
@@ -20,6 +21,7 @@ from constants import (
     FAKE_USER_UID,
 )
 from pyfakefs.fake_filesystem_unittest import TestCase
+from slurmutils import DownNodes, Node
 
 from hpc_libs.slurm_ops import (
     SackdManager,
@@ -60,18 +62,18 @@ class TestConfigManagement(TestCase):
         self.slurmctld.acct_gather._group = FAKE_GROUP_NAME
 
         with self.slurmctld.acct_gather.edit() as config:
-            self.assertEqual(config.energy_ipmi_frequency, "1")
-            self.assertEqual(config.energy_ipmi_calc_adjustment, "yes")
+            self.assertEqual(config.energy_ipmi_frequency, 1)
+            self.assertEqual(config.energy_ipmi_calc_adjustment, True)
             self.assertListEqual(config.sysfs_interfaces, ["enp0s1"])
 
-            config.energy_ipmi_frequency = "2"
-            config.energy_ipmi_calc_adjustment = "no"
+            config.energy_ipmi_frequency = 2
+            config.energy_ipmi_calc_adjustment = False
             config.sysfs_interfaces = ["enp0s2"]
 
         # Exit the context to save changes to the acct_gather.conf file.
         config = self.slurmctld.acct_gather.load()
-        self.assertEqual(config.energy_ipmi_frequency, "2")
-        self.assertEqual(config.energy_ipmi_calc_adjustment, "no")
+        self.assertEqual(config.energy_ipmi_frequency, 2)
+        self.assertEqual(config.energy_ipmi_calc_adjustment, False)
         self.assertListEqual(config.sysfs_interfaces, ["enp0s2"])
 
         # Ensure that permissions on the acct_gather.conf are correct.
@@ -89,20 +91,20 @@ class TestConfigManagement(TestCase):
         self.slurmctld.cgroup._group = FAKE_GROUP_NAME
 
         with self.slurmctld.cgroup.edit() as config:
-            self.assertEqual(config.constrain_cores, "yes")
-            self.assertEqual(config.constrain_devices, "yes")
+            self.assertEqual(config.constrain_cores, True)
+            self.assertEqual(config.constrain_devices, True)
 
-            config.constrain_cores = "no"
-            config.constrain_devices = "no"
-            config.constrain_ram_space = "no"
-            config.constrain_swap_space = "no"
+            config.constrain_cores = False
+            config.constrain_devices = False
+            config.constrain_ram_space = False
+            config.constrain_swap_space = False
 
         # Exit the context to save changes to the cgroup.conf file.
         config = self.slurmctld.cgroup.load()
-        self.assertEqual(config.constrain_cores, "no")
-        self.assertEqual(config.constrain_devices, "no")
-        self.assertEqual(config.constrain_ram_space, "no")
-        self.assertEqual(config.constrain_swap_space, "no")
+        self.assertEqual(config.constrain_cores, False)
+        self.assertEqual(config.constrain_devices, False)
+        self.assertEqual(config.constrain_ram_space, False)
+        self.assertEqual(config.constrain_swap_space, False)
 
         # Ensure that permissions on the cgroup.conf file are correct.
         f_info = Path("/etc/slurm/cgroup.conf").stat()
@@ -121,62 +123,55 @@ class TestConfigManagement(TestCase):
         with self.slurmctld.gres.edit() as config:
             self.assertEqual(config.auto_detect, "nvml")
             self.assertDictEqual(
-                config.names.dict(),
+                config.gres.dict(),
                 {
                     "gpu": [
                         {
-                            "Name": "gpu",
-                            "Type": "gp100",
-                            "File": "/dev/nvidia0",
-                            "Cores": ["0", "1"],
+                            "name": "gpu",
+                            "type": "gp100",
+                            "file": "/dev/nvidia0",
+                            "cores": [0, 1],
                         },
                         {
-                            "Name": "gpu",
-                            "Type": "gp100",
-                            "File": "/dev/nvidia1",
-                            "Cores": ["0", "1"],
+                            "name": "gpu",
+                            "type": "gp100",
+                            "file": "/dev/nvidia1",
+                            "cores": [0, 1],
                         },
                         {
-                            "Name": "gpu",
-                            "Type": "p6000",
-                            "File": "/dev/nvidia2",
-                            "Cores": ["2", "3"],
+                            "name": "gpu",
+                            "type": "p6000",
+                            "file": "/dev/nvidia2",
+                            "cores": [2, 3],
                         },
                         {
-                            "Name": "gpu",
-                            "Type": "p6000",
-                            "File": "/dev/nvidia3",
-                            "Cores": ["2", "3"],
+                            "name": "gpu",
+                            "type": "p6000",
+                            "file": "/dev/nvidia3",
+                            "cores": [2, 3],
+                        },
+                        {
+                            "name": "gpu",
+                            "nodename": "juju-c9c6f-[1-10]",
+                            "type": "rtx",
+                            "file": "/dev/nvidia[0-3]",
+                            "count": "8G",
                         },
                     ],
                     "mps": [
-                        {"Name": "mps", "Count": "200", "File": "/dev/nvidia0"},
-                        {"Name": "mps", "Count": "200", "File": "/dev/nvidia1"},
-                        {"Name": "mps", "Count": "100", "File": "/dev/nvidia2"},
-                        {"Name": "mps", "Count": "100", "File": "/dev/nvidia3"},
+                        {"name": "mps", "count": 200, "file": "/dev/nvidia0"},
+                        {"name": "mps", "count": 200, "file": "/dev/nvidia1"},
+                        {"name": "mps", "count": 100, "file": "/dev/nvidia2"},
+                        {"name": "mps", "count": 100, "file": "/dev/nvidia3"},
                     ],
                     "bandwidth": [
                         {
-                            "Name": "bandwidth",
-                            "Type": "lustre",
-                            "Count": "4G",
-                            "Flags": ["CountOnly"],
+                            "name": "bandwidth",
+                            "type": "lustre",
+                            "count": "4G",
+                            "flags": ["countonly"],
                         },
                     ],
-                },
-            )
-            self.assertDictEqual(
-                config.nodes.dict(),
-                {
-                    "juju-c9c6f-[1-10]": [
-                        {
-                            "NodeName": "juju-c9c6f-[1-10]",
-                            "Name": "gpu",
-                            "Type": "rtx",
-                            "File": "/dev/nvidia[0-3]",
-                            "Count": "8G",
-                        }
-                    ]
                 },
             )
 
@@ -192,6 +187,31 @@ class TestConfigManagement(TestCase):
         self.assertEqual(f_info.st_uid, FAKE_USER_UID)
         self.assertEqual(f_info.st_gid, FAKE_GROUP_GID)
 
+    def test_slurmctld_manager_oci_config(self) -> None:
+        """Test `SlurmctldManager` `oci.conf` configuration file editor."""
+        self.fs.create_file("/etc/slurm/oci.conf", contents=EXAMPLE_OCI_CONFIG)
+
+        # Fake user and group that owns the `oci.conf` configuration file.
+        self.slurmctld.oci._user = FAKE_USER_NAME
+        self.slurmctld.oci._group = FAKE_GROUP_NAME
+
+        with self.slurmctld.oci.edit() as config:
+            self.assertTrue(config.ignore_file_config_json)
+            self.assertEqual(config.run_time_run, "singularity exec --userns %r %@")
+
+            config.ignore_file_config_json = False
+            config.run_time_run = "apptainer exec --userns %r %@"
+
+        config = self.slurmctld.oci.load()
+        self.assertFalse(config.ignore_file_config_json)
+        self.assertEqual(config.run_time_run, "apptainer exec --userns %r %@")
+
+        # Ensure that permissions on the `oci.conf` configuration file are correct.
+        f_info = Path("/etc/slurm/oci.conf").stat()
+        self.assertEqual(stat.filemode(f_info.st_mode), "-rw-r--r--")
+        self.assertEqual(f_info.st_uid, FAKE_USER_UID)
+        self.assertEqual(f_info.st_gid, FAKE_GROUP_GID)
+
     def test_slurmctld_manager_slurm_config(self) -> None:
         """Test `SlurmctldManager` slurm.conf configuration file editor."""
         self.fs.create_file("/etc/slurm/slurm.conf", contents=EXAMPLE_SLURM_CONFIG)
@@ -202,29 +222,29 @@ class TestConfigManagement(TestCase):
 
         with self.slurmctld.config.edit() as config:
             self.assertEqual(config.slurmd_log_file, "/var/log/slurm/slurmd.log")
-            self.assertEqual(config.nodes["juju-c9fc6f-2"]["NodeAddr"], "10.152.28.48")
-            self.assertEqual(config.down_nodes[0]["State"], "DOWN")
+            self.assertEqual(config.nodes["juju-c9fc6f-2"].node_addr, "10.152.28.48")
+            self.assertEqual(config.down_nodes[0].state, "down")
 
-            config.slurmctld_port = "8081"
-            config.nodes["juju-c9fc6f-2"]["CPUs"] = "10"
-            config.nodes["juju-c9fc6f-20"] = {"CPUs": 1}
+            config.slurmctld_port = 8081
+            config.nodes["juju-c9fc6f-2"].cpus = 10
+            config.nodes["juju-c9fc6f-20"] = Node(nodename="juju-c9fc6f-20", cpus=1)
             config.down_nodes.append(
-                {"DownNodes": ["juju-c9fc6f-3"], "State": "DOWN", "Reason": "New nodes"}
+                DownNodes(downnodes=["juju-c9fc6f-3"], state="down", reason="New nodes")
             )
             del config.return_to_service
 
         # Exit the context to save changes to the slurm.conf file.
         config = self.slurmctld.config.load()
-        self.assertEqual(config.slurmctld_port, "8081")
+        self.assertEqual(config.slurmctld_port, 8081)
         self.assertNotEqual(config.return_to_service, "0")
 
         config_content = str(config).splitlines()
         self.assertIn(
-            "NodeName=juju-c9fc6f-2 NodeAddr=10.152.28.48 CPUs=10 RealMemory=1000 TmpDisk=10000",
+            "nodename=juju-c9fc6f-2 nodeaddr=10.152.28.48 cpus=10 realmemory=1000 tmpdisk=10000",
             config_content,
         )
-        self.assertIn("NodeName=juju-c9fc6f-20 CPUs=1", config_content)
-        self.assertIn('DownNodes=juju-c9fc6f-3 State=DOWN Reason="New nodes"', config_content)
+        self.assertIn("nodename=juju-c9fc6f-20 cpus=1", config_content)
+        self.assertIn('downnodes=juju-c9fc6f-3 state=down reason="New nodes"', config_content)
 
         # Ensure that permissions on the slurm.conf file are correct.
         f_info = Path("/etc/slurm/slurm.conf").stat()
