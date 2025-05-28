@@ -66,21 +66,19 @@ import dotenv
 import yaml
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from slurmutils.editors import (
+from slurmutils import (
+    AcctGatherConfig,
+    CGroupConfig,
+    GresConfig,
+    Model,
+    SlurmConfig,
+    SlurmdbdConfig,
     acctgatherconfig,
     cgroupconfig,
     gresconfig,
     slurmconfig,
     slurmdbdconfig,
 )
-from slurmutils.models import (
-    AcctGatherConfig,
-    CgroupConfig,
-    GRESConfig,
-    SlurmConfig,
-    SlurmdbdConfig,
-)
-from slurmutils.models.model import BaseModel
 
 import hpc_libs._apt as apt
 
@@ -198,7 +196,7 @@ class _ConfigManager(ABC):
         return Path(self._config_path)
 
     @abstractmethod
-    def load(self) -> BaseModel:
+    def load(self) -> Model:
         """Load the current configuration from the configuration file."""
 
     @abstractmethod
@@ -212,7 +210,7 @@ class _ConfigManager(ABC):
 
     @contextmanager
     @abstractmethod
-    def edit(self) -> Iterator[BaseModel]:
+    def edit(self) -> Iterator[Model]:
         """Edit the current configuration file."""
 
 
@@ -241,18 +239,18 @@ class _AcctGatherConfigManager(_ConfigManager):
 class _CgroupConfigManager(_ConfigManager):
     """Control the `cgroup.conf` configuration file."""
 
-    def load(self) -> CgroupConfig:
+    def load(self) -> CGroupConfig:
         """Load the current `cgroup.conf` configuration file."""
         return cgroupconfig.load(self._config_path)
 
-    def dump(self, config: CgroupConfig) -> None:
+    def dump(self, config: CGroupConfig) -> None:
         """Dump new configuration into `cgroup.conf` configuration file."""
         cgroupconfig.dump(
             config, self._config_path, mode=0o644, user=self._user, group=self._group
         )
 
     @contextmanager
-    def edit(self) -> Iterator[CgroupConfig]:
+    def edit(self) -> Iterator[CGroupConfig]:
         """Edit the current `cgroup.conf` configuration file."""
         with cgroupconfig.edit(
             self._config_path, mode=0o644, user=self._user, group=self._group
@@ -263,16 +261,16 @@ class _CgroupConfigManager(_ConfigManager):
 class _GRESConfigManager(_ConfigManager):
     """Manage the `gres.conf` configuration file."""
 
-    def load(self) -> GRESConfig:
+    def load(self) -> GresConfig:
         """Load the current `gres.conf` configuration files."""
         return gresconfig.load(self._config_path)
 
-    def dump(self, config: GRESConfig) -> None:
+    def dump(self, config: GresConfig) -> None:
         """Dump new configuration into `gres.conf` configuration file."""
         gresconfig.dump(config, self._config_path, mode=0o644, user=self._user, group=self._group)
 
     @contextmanager
-    def edit(self) -> Iterator[GRESConfig]:
+    def edit(self) -> Iterator[GresConfig]:
         """Edit the current `gres.conf` configuration file."""
         with gresconfig.edit(
             self._config_path, mode=0o644, user=self._user, group=self._group
