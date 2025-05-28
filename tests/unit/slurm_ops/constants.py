@@ -1,4 +1,4 @@
-# Copyright 2024 Canonical Ltd.
+# Copyright 2024-2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """Constants used within unit tests for the `slurm_ops` charm library."""
@@ -106,133 +106,131 @@ cYJxcwKBgQCK+dW+F0UJTQq1rDxfI0rt6yuRnhtSdAq2+HbXNx/0nwdLQg7SubWe
 EXAMPLE_ACCT_GATHER_CONFIG = """#
 # `acct_gather.conf` file generated at 2024-09-18 15:10:44.652017 by slurmutils.
 #
-EnergyIPMIFrequency=1
-EnergyIPMICalcAdjustment=yes
-EnergyIPMIPowerSensors=Node=16,19;Socket1=19,26;KNC=16,19
-EnergyIPMIUsername=testipmiusername
-EnergyIPMIPassword=testipmipassword
-EnergyIPMITimeout=10
-ProfileHDF5Dir=/mydir
-ProfileHDF5Default=ALL
-ProfileInfluxDBDatabase=acct_gather_db
-ProfileInfluxDBDefault=ALL
-ProfileInfluxDBHost=testhostname
-ProfileInfluxDBPass=testpassword
-ProfileInfluxDBRTPolicy=testpolicy
-ProfileInfluxDBUser=testuser
-ProfileInfluxDBTimeout=10
-InfinibandOFEDPort=0
-SysfsInterfaces=enp0s1
+energyipmifrequency=1
+energyipmicalcadjustment=yes
+energyipmipowersensors=node=16,19;socket1=19,26;knc=16,19
+energyipmiusername=testipmiusername
+energyipmipassword=testipmipassword
+energyipmitimeout=10
+profilehdf5dir=/mydir
+profilehdf5default=all
+profileinfluxdbdatabase=acct_gather_db
+profileinfluxdbdefault=all
+profileinfluxdbhost=testhostname
+profileinfluxdbpass=testpassword
+profileinfluxdbrtpolicy=testpolicy
+profileinfluxdbuser=testuser
+profileinfluxdbtimeout=10
+infinibandofedport=0
+sysfsinterfaces=enp0s1
 """
 
 EXAMPLE_CGROUP_CONFIG = """#
 # `cgroup.conf` file generated at 2024-09-18 15:10:44.652017 by slurmutils.
 #
-ConstrainCores=yes
-ConstrainDevices=yes
-ConstrainRAMSpace=yes
-ConstrainSwapSpace=yes
+constraincores=yes
+constraindevices=yes
+constrainramspace=yes
+constrainswapspace=yes
 """
 
 EXAMPLE_GRES_CONFIG = """#
 # `gres.conf` file generated at 2024-12-10 14:17:35.161642 by slurmutils.
 #
-AutoDetect=nvml
-Name=gpu Type=gp100  File=/dev/nvidia0 Cores=0,1
-Name=gpu Type=gp100  File=/dev/nvidia1 Cores=0,1
-Name=gpu Type=p6000  File=/dev/nvidia2 Cores=2,3
-Name=gpu Type=p6000  File=/dev/nvidia3 Cores=2,3
-Name=mps Count=200  File=/dev/nvidia0
-Name=mps Count=200  File=/dev/nvidia1
-Name=mps Count=100  File=/dev/nvidia2
-Name=mps Count=100  File=/dev/nvidia3
-Name=bandwidth Type=lustre Count=4G Flags=CountOnly
-
-NodeName=juju-c9c6f-[1-10] Name=gpu Type=rtx File=/dev/nvidia[0-3] Count=8G
+autodetect=nvml
+name=gpu type=gp100 file=/dev/nvidia0 cores=0,1
+name=gpu type=gp100 file=/dev/nvidia1 cores=0,1
+name=gpu type=p6000 file=/dev/nvidia2 cores=2,3
+name=gpu type=p6000 file=/dev/nvidia3 cores=2,3
+name=gpu nodename=juju-c9c6f-[1-10] type=rtx file=/dev/nvidia[0-3] count=8G
+name=mps count=200 file=/dev/nvidia0
+name=mps count=200 file=/dev/nvidia1
+name=mps count=100 file=/dev/nvidia2
+name=mps count=100 file=/dev/nvidia3
+name=bandwidth type=lustre count=4G flags=countonly
 """
 
 EXAMPLE_SLURM_CONFIG = """#
 # `slurm.conf` file generated at 2024-01-30 17:18:36.171652 by slurmutils.
 #
-SlurmctldHost=juju-c9fc6f-0(10.152.28.20)
-SlurmctldHost=juju-c9fc6f-1(10.152.28.100)
+slurmctldhost=juju-c9fc6f-0(10.152.28.20)
+slurmctldhost=juju-c9fc6f-1(10.152.28.100)
 
-ClusterName=charmed-hpc
-AuthType=auth/slurm
-Epilog=/usr/local/slurm/epilog
-Prolog=/usr/local/slurm/prolog
-FirstJobId=65536
-InactiveLimit=120
-JobCompType=jobcomp/filetxt
-JobCompLoc=/var/log/slurm/jobcomp
-KillWait=30
-MaxJobCount=10000
-MinJobAge=3600
-PluginDir=/usr/local/lib:/usr/local/slurm/lib
-ReturnToService=0
-SchedulerType=sched/backfill
-SlurmctldLogFile=/var/log/slurm/slurmctld.log
-SlurmdLogFile=/var/log/slurm/slurmd.log
-SlurmctldPort=7002
-SlurmdPort=7003
-SlurmdSpoolDir=/var/spool/slurmd.spool
-StateSaveLocation=/var/spool/slurm.state
-SwitchType=switch/none
-TmpFS=/tmp
-WaitTime=30
-
-#
-# Node configurations
-#
-NodeName=juju-c9fc6f-2 NodeAddr=10.152.28.48 CPUs=1 RealMemory=1000 TmpDisk=10000
-NodeName=juju-c9fc6f-3 NodeAddr=10.152.28.49 CPUs=1 RealMemory=1000 TmpDisk=10000
-NodeName=juju-c9fc6f-4 NodeAddr=10.152.28.50 CPUs=1 RealMemory=1000 TmpDisk=10000
-NodeName=juju-c9fc6f-5 NodeAddr=10.152.28.51 CPUs=1 RealMemory=1000 TmpDisk=10000
+clustername=charmed-hpc
+authtype=auth/slurm
+epilog=/usr/local/slurm/epilog
+prolog=/usr/local/slurm/prolog
+firstjobid=65536
+inactivelimit=120
+jobcomptype=jobcomp/filetxt
+jobcomploc=/var/log/slurm/jobcomp
+killwait=30
+maxjobcount=10000
+minjobage=3600
+plugindir=/usr/local/lib:/usr/local/slurm/lib
+returntoservice=0
+schedulertype=sched/backfill
+slurmctldlogfile=/var/log/slurm/slurmctld.log
+slurmdlogfile=/var/log/slurm/slurmd.log
+slurmctldport=7002
+slurmdport=7003
+slurmdspooldir=/var/spool/slurmd.spool
+statesavelocation=/var/spool/slurm.state
+tmpfs=/tmp
+waittime=30
 
 #
-# Down node configurations
+# node configurations
 #
-DownNodes=juju-c9fc6f-5 State=DOWN Reason="Maintenance Mode"
+nodename=juju-c9fc6f-2 nodeaddr=10.152.28.48 cpus=1 realmemory=1000 tmpdisk=10000
+nodename=juju-c9fc6f-3 nodeaddr=10.152.28.49 cpus=1 realmemory=1000 tmpdisk=10000
+nodename=juju-c9fc6f-4 nodeaddr=10.152.28.50 cpus=1 realmemory=1000 tmpdisk=10000
+nodename=juju-c9fc6f-5 nodeaddr=10.152.28.51 cpus=1 realmemory=1000 tmpdisk=10000
 
 #
-# Partition configurations
+# down node configurations
 #
-PartitionName=DEFAULT MaxTime=30 MaxNodes=10 State=UP
-PartitionName=batch Nodes=juju-c9fc6f-2,juju-c9fc6f-3,juju-c9fc6f-4,juju-c9fc6f-5 MinNodes=4 MaxTime=120 AllowGroups=admin
+downnodes=juju-c9fc6f-5 state=down reason="Maintenance Mode"
+
+#
+# partition configurations
+#
+partitionname=default maxtime=30 maxnodes=10 state=up
+partitionname=batch nodes=juju-c9fc6f-2,juju-c9fc6f-3,juju-c9fc6f-4,juju-c9fc6f-5 minnodes=4 maxtime=120 allowgroups=admin
 """
 
 EXAMPLE_SLURMDBD_CONFIG = """#
 # `slurmdbd.conf` file generated at 2024-01-30 17:18:36.171652 by slurmutils.
 #
-ArchiveEvents=yes
-ArchiveJobs=yes
-ArchiveResvs=yes
-ArchiveSteps=no
-ArchiveTXN=no
-ArchiveUsage=no
-ArchiveScript=/usr/sbin/slurm.dbd.archive
-AuthInfo=use_client_ids
-AuthType=auth/slurm
-AuthAltTypes=auth/jwt
-AuthAltParameters=jwt_key=16549684561684@
-DbdHost=slurmdbd-0
-DbdBackupHost=slurmdbd-1
-DebugLevel=info
-PluginDir=/all/these/cool/plugins
-PurgeEventAfter=1month
-PurgeJobAfter=12month
-PurgeResvAfter=1month
-PurgeStepAfter=1month
-PurgeSuspendAfter=1month
-PurgeTXNAfter=12month
-PurgeUsageAfter=24month
-LogFile=/var/log/slurmdbd.log
-PidFile=/var/run/slurmdbd.pid
-SlurmUser=slurm
-StoragePass=supersecretpasswd
-StorageType=accounting_storage/mysql
-StorageUser=slurm
-StorageHost=127.0.0.1
-StoragePort=3306
-StorageLoc=slurm_acct_db
+archiveevents=yes
+archivejobs=yes
+archiveresvs=yes
+archivesteps=no
+archivetxn=no
+archiveusage=no
+archivescript=/usr/sbin/slurm.dbd.archive
+authinfo=use_client_ids
+authtype=auth/slurm
+authalttypes=auth/jwt
+authaltparameters=jwt_key=16549684561684@
+dbdhost=slurmdbd-0
+dbdbackuphost=slurmdbd-1
+debuglevel=info
+plugindir=/all/these/cool/plugins
+purgeeventafter=1month
+purgejobafter=12month
+purgeresvafter=1month
+purgestepafter=1month
+purgesuspendafter=1month
+purgetxnafter=12month
+purgeusageafter=24month
+logfile=/var/log/slurmdbd.log
+pidfile=/var/run/slurmdbd.pid
+slurmuser=slurm
+storagepass=supersecretpasswd
+storagetype=accounting_storage/mysql
+storageuser=slurm
+storagehost=127.0.0.1
+storageport=3306
+storageloc=slurm_acct_db
 """
