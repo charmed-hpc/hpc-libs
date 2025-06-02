@@ -12,4 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A collection of libraries for authoring HPC-related Juju charms."""
+"""Integration interfaces for the Slurm workload manager charms."""
