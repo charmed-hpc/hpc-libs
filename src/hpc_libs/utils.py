@@ -12,4 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A collection of libraries for authoring HPC-related Juju charms."""
+"""Utilities for streamlining common operations within HPC-related Juju charms."""
+
+__all__ = ["leader"]
+
+from collections.abc import Callable
+from functools import wraps
+from typing import Any
+
+import ops
+
+
+def leader(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Only run method if the unit is the application leader, otherwise skip."""
+
+    @wraps(func)
+    def wrapper(charm: ops.CharmBase, *args: Any, **kwargs: Any) -> Any:
+        if not charm.unit.is_leader():
+            return None
+
+        return func(charm, *args, **kwargs)
+
+    return wrapper

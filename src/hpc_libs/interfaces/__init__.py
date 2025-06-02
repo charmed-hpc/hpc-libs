@@ -12,4 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A collection of libraries for authoring HPC-related Juju charms."""
+"""Integration interfaces for HPC-related Juju charms."""
+
+__all__ = [
+    # From `slurm/common.py`
+    "SlurmctldConnectedEvent",
+    "SlurmctldDisconnectedEvent",
+    # From `slurm/oci_runtime.py`
+    "OCIRunTimeData",
+    "OCIRunTimeDisconnectedEvent",
+    "OCIRunTimeReadyEvent",
+    "OCIRunTimeProvider",
+    "OCIRunTimeRequirer",
+]
+
+from .slurm.common import SlurmctldConnectedEvent, SlurmctldDisconnectedEvent
+from .slurm.oci_runtime import (
+    OCIRunTimeData,
+    OCIRunTimeDisconnectedEvent,
+    OCIRunTimeProvider,
+    OCIRunTimeReadyEvent,
+    OCIRunTimeRequirer,
+)
