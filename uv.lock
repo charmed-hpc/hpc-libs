@@ -250,7 +250,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = "~=1.0.1" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "ruff", marker = "extra == 'dev'" },
-    { name = "slurmutils", specifier = "==1.1.0" },
+    { name = "slurmutils", specifier = "==1.1.1" },
 ]
 provides-extras = ["dev"]
 
@@ -567,15 +567,15 @@ wheels = [
 
 [[package]]
 name = "slurmutils"
-version = "1.1.0"
+version = "1.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jsonschema" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0c/63/3fe215ce706e329ded116cd947fa382f7b71449ae15ff73e07b6a2f298b1/slurmutils-1.1.0.tar.gz", hash = "sha256:ef5b6acf143bddc27fb2a54b2c6c9e16165a169a921fd19553e84f9610fa543f", size = 34756, upload-time = "2025-05-22T12:21:05.466Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f2/5f/ad71a4676b7afaa249f3fabef9934023a72d5b240c3ccce49cdb7bf96739/slurmutils-1.1.1.tar.gz", hash = "sha256:c0e3af88438cc7e1e573109024c5e61ae3019dd6d9b377a7da24ee9d28ecb2c3", size = 36345, upload-time = "2025-06-02T13:42:14.611Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/27/53/5575f5b58b6db05d683df94d9b9cdecb3a9629759a34a8eef9cd4f1a8389/slurmutils-1.1.0-py3-none-any.whl", hash = "sha256:6d2c24467a22b7b1ee539734599e17c0030cb66df50e098c17f035d7d0055067", size = 41169, upload-time = "2025-05-22T12:21:04.053Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/2f/42cd1844f119da23a335471e1d336bb045fc7336c3d7c1b7e2308cc88ac5/slurmutils-1.1.1-py3-none-any.whl", hash = "sha256:0196a3af5c005946aef04d6d623f85231977b41afdddddd3746fd6ff9eecaedf", size = 49891, upload-time = "2025-06-02T13:42:13.588Z" },
 ]
 
 [[package]]
