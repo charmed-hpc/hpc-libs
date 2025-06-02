@@ -42,7 +42,7 @@ def test_slurm_config(slurmctld: SlurmctldManager) -> None:
     """Test that the slurm config can be changed."""
     with slurmctld.config.edit() as config:
         config.slurmctld_host = [slurmctld.hostname]
-        config.state_save_location = slurmctld._ops_manager.var_lib_path / "checkpoint"
+        config.state_save_location = str(slurmctld._ops_manager.var_lib_path / "checkpoint")
         config.cluster_name = "test-cluster"
         config.auth_type = "auth/slurm"
         config.cred_type = "cred/slurm"
@@ -53,15 +53,15 @@ def test_slurm_config(slurmctld: SlurmctldManager) -> None:
         if len(entry) != 2:
             continue
         key, value = entry
-        if key == "ClusterName":
+        if key == "clustername":
             assert value == "test-cluster"
-        if key == "SlurmctldHost":
+        if key == "slurmctldhost":
             assert value == slurmctld.hostname
-        if key == "AuthType":
+        if key == "authtype":
             assert value == "auth/slurm"
-        if key == "CredType":
+        if key == "credtype":
             assert value == "cred/slurm"
-        if key == "SlurmUser":
+        if key == "slurmuser":
             assert value == "slurm"
 
 
