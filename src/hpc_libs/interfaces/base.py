@@ -22,8 +22,6 @@ from typing import Any
 
 import ops
 
-INTEGRATION_CONTENT_KEY = "data"
-
 
 class BaseInterface(ops.Object):
     """Base interface for HPC-related integrations.
