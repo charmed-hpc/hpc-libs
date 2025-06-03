@@ -26,7 +26,7 @@ from mock_charms import (
 from ops import testing
 from slurmutils import OCIConfig
 
-from hpc_libs.interfaces import OCIRunTimeDisconnectedEvent, OCIRunTimeReadyEvent
+from hpc_libs.interfaces import OCIRuntimeDisconnectedEvent, OCIRuntimeReadyEvent
 
 
 @pytest.fixture(scope="function")
@@ -104,21 +104,21 @@ def test_oci_runtime_ready_event_handler(requirer_ctx, leader, remote_app_data) 
         #  can be read correctly to consume `oci.conf` data.
 
         # Assert that the last event emitted on the `leader` unit is an `OCIRunTimeReadyEvent`.
-        assert isinstance(requirer_ctx.emitted_events[-1], OCIRunTimeReadyEvent)
+        assert isinstance(requirer_ctx.emitted_events[-1], OCIRuntimeReadyEvent)
 
         # Assert that `OCIRunTimeReadyEvent` was emitted only once.
         occurred = defaultdict(lambda: 0)
         for event in requirer_ctx.emitted_events:
             occurred[type(event)] += 1
 
-        assert occurred[OCIRunTimeReadyEvent] == 1
+        assert occurred[OCIRuntimeReadyEvent] == 1
 
     else:
         # Assert that `OCIRunTimeReadyEvent` is never emitted on non-leader units or on the
         # leader unit if `remote_app_data` is empty - e.g. blank `RelationChangedEvent` emitted
         # after `slurmctld` and `oci-runtime-provider` are integrated together.
         assert not any(
-            isinstance(event, OCIRunTimeReadyEvent) for event in requirer_ctx.emitted_events
+            isinstance(event, OCIRuntimeReadyEvent) for event in requirer_ctx.emitted_events
         )
 
 
@@ -141,16 +141,16 @@ def test_oci_runtime_disconnected_event_handler(requirer_ctx, leader) -> None:
     if leader:
         # Assert that the last event emitted on the `leader` unit is
         # an `OCIRunTimeDisconnectedEvent`.
-        assert isinstance(requirer_ctx.emitted_events[-1], OCIRunTimeDisconnectedEvent)
+        assert isinstance(requirer_ctx.emitted_events[-1], OCIRuntimeDisconnectedEvent)
 
         # Assert that `OCIRunTimeDisconnectedEvent` was emitted only once.
         occurred = defaultdict(lambda: 0)
         for event in requirer_ctx.emitted_events:
             occurred[type(event)] += 1
 
-        assert occurred[OCIRunTimeDisconnectedEvent] == 1
+        assert occurred[OCIRuntimeDisconnectedEvent] == 1
     else:
         # Assert that `OCIRunTimeDisconnectEvent` is never emitted on non-leader units.
         assert not any(
-            isinstance(event, OCIRunTimeDisconnectedEvent) for event in requirer_ctx.emitted_events
+            isinstance(event, OCIRuntimeDisconnectedEvent) for event in requirer_ctx.emitted_events
         )

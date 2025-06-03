@@ -15,11 +15,11 @@
 """Integration interface implementation for the `slurm_oci_runtime` interface."""
 
 __all__ = [
-    "OCIRunTimeData",
-    "OCIRunTimeDisconnectedEvent",
-    "OCIRunTimeReadyEvent",
-    "OCIRunTimeProvider",
-    "OCIRunTimeRequirer",
+    "OCIRuntimeData",
+    "OCIRuntimeDisconnectedEvent",
+    "OCIRuntimeReadyEvent",
+    "OCIRuntimeProvider",
+    "OCIRuntimeRequirer",
 ]
 
 from dataclasses import asdict, dataclass
@@ -38,7 +38,7 @@ from hpc_libs.utils import leader
 
 
 @dataclass
-class OCIRunTimeData:
+class OCIRuntimeData:
     """Data provided by the OCI runtime.
 
     Attributes:
@@ -48,7 +48,7 @@ class OCIRunTimeData:
     ociconfig: OCIConfig
 
 
-class OCIRunTimeReadyEvent(ops.RelationEvent):
+class OCIRuntimeReadyEvent(ops.RelationEvent):
     """Event emitted when the OCI runtime application leader is ready.
 
     Notes:
@@ -58,18 +58,18 @@ class OCIRunTimeReadyEvent(ops.RelationEvent):
     """
 
 
-class OCIRunTimeDisconnectedEvent(ops.RelationEvent):
+class OCIRuntimeDisconnectedEvent(ops.RelationEvent):
     """Event emitted when the OCI runtime application is disconnected from `slurmctld`."""
 
 
 class _OCIRunTimeRequirerEvents(ops.CharmEvents):
     """`slurm_oci_runtime` requirer events."""
 
-    oci_runtime_ready = ops.EventSource(OCIRunTimeReadyEvent)
-    oci_runtime_disconnected = ops.EventSource(OCIRunTimeDisconnectedEvent)
+    oci_runtime_ready = ops.EventSource(OCIRuntimeReadyEvent)
+    oci_runtime_disconnected = ops.EventSource(OCIRuntimeDisconnectedEvent)
 
 
-class OCIRunTimeProvider(SlurmctldRequirer):
+class OCIRuntimeProvider(SlurmctldRequirer):
     """Integration interface implementation for `slurm_oci_runtime` providers.
 
     Notes:
@@ -79,7 +79,7 @@ class OCIRunTimeProvider(SlurmctldRequirer):
 
     @leader
     def set_oci_runtime_data(
-        self, data: OCIRunTimeData, /, integration_id: int | None = None
+        self, data: OCIRuntimeData, /, integration_id: int | None = None
     ) -> None:
         """Set OCI runtime data in the `slurm_oci_runtime` application databag.
 
@@ -105,7 +105,7 @@ class OCIRunTimeProvider(SlurmctldRequirer):
             update_app_data(self.app, integration, asdict(data), json_encoder=SlurmJSONEncoder)
 
 
-class OCIRunTimeRequirer(SlurmctldProvider):
+class OCIRuntimeRequirer(SlurmctldProvider):
     """Integration interface implementation for `slurm_oci_runtime` requirers.
 
     Notes:
@@ -139,12 +139,12 @@ class OCIRunTimeRequirer(SlurmctldProvider):
         self.on.oci_runtime_ready.emit(event.relation)
 
     @leader
-    def _on_relation_broken(self, event: OCIRunTimeDisconnectedEvent) -> None:
+    def _on_relation_broken(self, event: OCIRuntimeDisconnectedEvent) -> None:
         self.on.oci_runtime_disconnected.emit(event.relation)
 
     def get_oci_runtime_data(
         self, /, integration: ops.Relation | None = None, integration_id: int | None = None
-    ) -> OCIRunTimeData | None:
+    ) -> OCIRuntimeData | None:
         """Get OCI runtime data from the `slurm_oci_runtime` application databag.
 
         Args:
@@ -166,4 +166,4 @@ class OCIRunTimeRequirer(SlurmctldProvider):
         if config := provider_app_data.get("ociconfig"):
             provider_app_data["ociconfig"] = OCIConfig.from_json(config)
 
-        return OCIRunTimeData(**provider_app_data) if provider_app_data else None
+        return OCIRuntimeData(**provider_app_data) if provider_app_data else None

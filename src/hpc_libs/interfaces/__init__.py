@@ -19,18 +19,18 @@ __all__ = [
     "SlurmctldConnectedEvent",
     "SlurmctldDisconnectedEvent",
     # From `slurm/oci_runtime.py`
-    "OCIRunTimeData",
-    "OCIRunTimeDisconnectedEvent",
-    "OCIRunTimeReadyEvent",
-    "OCIRunTimeProvider",
-    "OCIRunTimeRequirer",
+    "OCIRuntimeData",
+    "OCIRuntimeDisconnectedEvent",
+    "OCIRuntimeReadyEvent",
+    "OCIRuntimeProvider",
+    "OCIRuntimeRequirer",
 ]
 
 from .slurm.common import SlurmctldConnectedEvent, SlurmctldDisconnectedEvent
 from .slurm.oci_runtime import (
-    OCIRunTimeData,
-    OCIRunTimeDisconnectedEvent,
-    OCIRunTimeProvider,
-    OCIRunTimeReadyEvent,
-    OCIRunTimeRequirer,
+    OCIRuntimeData,
+    OCIRuntimeDisconnectedEvent,
+    OCIRuntimeProvider,
+    OCIRuntimeReadyEvent,
+    OCIRuntimeRequirer,
 )
