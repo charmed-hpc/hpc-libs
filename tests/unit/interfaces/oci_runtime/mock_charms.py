@@ -19,11 +19,11 @@ from ops import Framework
 from slurmutils import OCIConfig
 
 from hpc_libs.interfaces import (
-    OCIRunTimeData,
-    OCIRunTimeDisconnectedEvent,
-    OCIRunTimeProvider,
-    OCIRunTimeReadyEvent,
-    OCIRunTimeRequirer,
+    OCIRuntimeData,
+    OCIRuntimeDisconnectedEvent,
+    OCIRuntimeProvider,
+    OCIRuntimeReadyEvent,
+    OCIRuntimeRequirer,
     SlurmctldConnectedEvent,
 )
 
@@ -44,13 +44,13 @@ class MockOCIRunTimeProviderCharm(ops.CharmBase):
     def __init__(self, framework: Framework) -> None:
         super().__init__(framework)
 
-        self._oci_runtime = OCIRunTimeProvider(self, OCI_RUNTIME_INTEGRATION_NAME)
+        self._oci_runtime = OCIRuntimeProvider(self, OCI_RUNTIME_INTEGRATION_NAME)
 
         framework.observe(self._oci_runtime.on.slurmctld_connected, self._on_slurmctld_connected)
 
     def _on_slurmctld_connected(self, event: SlurmctldConnectedEvent) -> None:
         self._oci_runtime.set_oci_runtime_data(
-            OCIRunTimeData(ociconfig=EXAMPLE_OCI_CONFIG),
+            OCIRuntimeData(ociconfig=EXAMPLE_OCI_CONFIG),
             integration_id=event.relation.id,
         )
 
@@ -61,7 +61,7 @@ class MockOCIRunTimeRequirerCharm(ops.CharmBase):
     def __init__(self, framework: Framework) -> None:
         super().__init__(framework)
 
-        self._oci_runtime = OCIRunTimeRequirer(self, OCI_RUNTIME_INTEGRATION_NAME)
+        self._oci_runtime = OCIRuntimeRequirer(self, OCI_RUNTIME_INTEGRATION_NAME)
 
         framework.observe(
             self._oci_runtime.on.oci_runtime_ready,
@@ -72,9 +72,9 @@ class MockOCIRunTimeRequirerCharm(ops.CharmBase):
             self._on_oci_runtime_disconnected,
         )
 
-    def _on_oci_runtime_ready(self, event: OCIRunTimeReadyEvent) -> None:
+    def _on_oci_runtime_ready(self, event: OCIRuntimeReadyEvent) -> None:
         config = self._oci_runtime.get_oci_runtime_data(event.relation)
         # Assume `remote_app_data` contains `oci.conf` configuration data.
         assert config.ociconfig.dict() == EXAMPLE_OCI_CONFIG.dict()
 
-    def _on_oci_runtime_disconnected(self, event: OCIRunTimeDisconnectedEvent) -> None: ...
+    def _on_oci_runtime_disconnected(self, event: OCIRuntimeDisconnectedEvent) -> None: ...
