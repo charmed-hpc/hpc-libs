@@ -38,8 +38,7 @@ class MockCharm(ops.CharmBase):
             raise StopCharm(ops.BlockedStatus("more than 1 unit not supported"))
 
     @refresh_no_check_func
-    def _on_stop(self, _: ops.StopEvent) -> None:
-        ...
+    def _on_stop(self, _: ops.StopEvent) -> None: ...
 
 
 @pytest.fixture(scope="function")

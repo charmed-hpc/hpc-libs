@@ -33,29 +33,38 @@ keywords = ["HPC", "administration", "orchestration", "utility"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-]
-dependencies = [
-    "cryptography~=44.0.1",
-    "pyyaml>=6.0.2",
-    "python-dotenv~=1.0.1",
-    "slurmutils<=2.0.0,>=1.1.1",
-    "distro~=1.9.0",
-    "ops~=2.22",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Distributed Computing",
 ]
 
 [project.optional-dependencies]
+interfaces = [
+    "ops ~= 2.22",
+    "slurmutils <= 2.0.0, >= 1.1.1",
+]
+machine = [
+    "python-dotenv ~= 1.1.1",
+    "pyyaml>=6.0.2",
+]
+all = [
+    "hpc-libs[interfaces]",
+    "hpc-libs[machine]",
+]
 dev = [
-    # tests deps
+    "hpc-libs[all]",
+
+    # Test deps
     "coverage[toml] ~= 7.6",
-    "pyfakefs ~= 5.6.0",
+    "pyfakefs ~= 5.9",
     "pytest ~= 8.3",
-    "pytest-order ~= 1.1",
+    "pytest-mock ~= 3.14",
+    "pytest-order ~= 1.3",
     "ops-scenario~=7.22",
 
     # Linting
@@ -76,7 +85,7 @@ include = [
     "src/**/*.py"
 ]
 omit = [
-    "_apt.py"
+    "src/**/machine/apt.py"
 ]
 
 [tool.coverage.report]
@@ -88,7 +97,7 @@ log_cli_level = "INFO"
 
 # Spell checking tools configuration
 [tool.codespell]
-skip = "lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.pytest_cache,.vscode,.coverage,.venv,cover,_apt.py"
+skip = "lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.pytest_cache,.vscode,.coverage,.venv,cover,./src/hpc_libs/machine/apt.py"
 
 # Linting tools configuration
 [tool.ruff]
@@ -122,4 +131,4 @@ max-complexity = 15
 
 [tool.pyright]
 include = ["src/*"]
-exclude = ["**/_apt.py"]
+exclude = ["**/machine/apt.py"]
