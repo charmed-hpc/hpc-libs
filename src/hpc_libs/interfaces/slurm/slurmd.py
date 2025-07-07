@@ -113,7 +113,7 @@ class SlurmdRequirer(SlurmctldProvider):
     enlist new `slurmd` partitions, and managed the partition configuration.
     """
 
-    on = _SlurmdRequirerEvents()
+    on = _SlurmdRequirerEvents()  # type: ignore
 
     def __init__(self, charm: ops.CharmBase, integration_name: str) -> None:
         super().__init__(charm, integration_name)
