@@ -15,20 +15,28 @@
 """Common classes, methods, and utilities shared between Slurm-related integration interfaces."""
 
 __all__ = [
+    "ControllerData",
     "SlurmctldConnectedEvent",
+    "SlurmctldReadyEvent",
     "SlurmctldDisconnectedEvent",
     "SlurmJSONEncoder",
     "SlurmctldProvider",
     "SlurmctldRequirer",
+    "controller_not_ready",
 ]
 
 import json
+from dataclasses import asdict, dataclass
+from string import Template
 from typing import Any
 
 import ops
 from slurmutils import Model
 
-from ..base import BaseInterface
+from hpc_libs.interfaces.base import ConditionEvaluation, Interface, Secret, update_app_data
+from hpc_libs.utils import leader
+
+AUTH_KEY_TEMPLATE_LABEL = Template("integration-$id-auth-key-secret")
 
 
 class SlurmJSONEncoder(json.JSONEncoder):
@@ -42,8 +50,46 @@ class SlurmJSONEncoder(json.JSONEncoder):
         return super().default(o)
 
 
+@dataclass(frozen=True)
+class ControllerData:
+    """Data provided by the Slurm controller service, `slurmctld`.
+
+    Attributes:
+        auth_key: Base64-encoded string representing the `auth/slurm` key.
+        controllers:
+            List of controller addresses for that can be used by Slurm services
+            for contacting the `slurmctld` application. The first entry in the list is the
+            primary `slurmctld` service. Other entries are failovers.
+        auth_key_id: ID of the `auth/slurm` key Juju secret for this integration instance.
+    """
+
+    auth_key: str
+    controllers: list[str]
+    auth_key_id: str | None = None
+
+
+def controller_not_ready(charm: ops.CharmBase) -> ConditionEvaluation:
+    """Check if controller - `slurmctld` - data is available.
+
+    Notes:
+        - This condition check requires that the charm has a public `slurmctld`
+          attribute that has a public `ready` method.
+    """
+    not_ready = not charm.slurmctld.ready()  # type: ignore
+    return not_ready, "Waiting for controller data" if not_ready else ""
+
+
 class SlurmctldConnectedEvent(ops.RelationEvent):
     """Event emitted when `slurmctld` is connected to a Slurm-related application."""
+
+
+class SlurmctldReadyEvent(ops.RelationEvent):
+    """Event emitted when the primary `slurmctld` service is ready.
+
+    Notes:
+        The `slurmctld` application is ready once it is fully initialized and able to share
+        the configuration information required by other Slurm services such as `slurmd`.
+    """
 
 
 class SlurmctldDisconnectedEvent(ops.RelationEvent):
@@ -54,10 +100,11 @@ class _SlurmctldRequirerEvents(ops.CharmEvents):
     """`slurmctld` requirer events."""
 
     slurmctld_connected = ops.EventSource(SlurmctldConnectedEvent)
+    slurmctld_ready = ops.EventSource(SlurmctldReadyEvent)
     slurmctld_disconnected = ops.EventSource(SlurmctldDisconnectedEvent)
 
 
-class SlurmctldProvider(BaseInterface):
+class SlurmctldProvider(Interface):
     """Base interface for `slurmctld` providers to consume Slurm service data.
 
     Notes:
@@ -66,8 +113,58 @@ class SlurmctldProvider(BaseInterface):
         provide by other Slurm services such as `slurmd` or `slurmdbd`.
     """
 
+    def __init__(self, charm: ops.CharmBase, integration_name: str) -> None:
+        super().__init__(charm, integration_name)
 
-class SlurmctldRequirer(BaseInterface):
+        self.framework.observe(
+            self.charm.on[self._integration_name].relation_broken,
+            self._on_relation_broken,
+        )
+
+    @leader
+    def _on_relation_broken(self, event: ops.RelationBrokenEvent) -> None:
+        """Revoke the departing application's access to Slurm secrets."""
+        if auth_secret := Secret.load(
+            self.charm,
+            label=AUTH_KEY_TEMPLATE_LABEL.substitute(id=event.relation.id),
+        ):
+            auth_secret.remove()
+
+    @leader
+    def set_controller_data(
+        self, content: ControllerData, /, integration_id: int | None = None
+    ) -> None:
+        """Set `slurmctld` controller data for Slurm services on application databag.
+
+        Args:
+            content: `slurmctld` provider data to set on application databag.
+            integration_id:
+                Grant an integration access to Slurm secrets. This argument must not
+                be set to the ID of an integration if that integration requires
+                access to Slurm secrets.
+        """
+        integrations = self.charm.model.relations.get(self._integration_name)
+        if not integrations:
+            return
+
+        if integration_id is not None:
+            integrations = [
+                integration for integration in integrations if integration.id == integration_id
+            ]
+
+            secret = Secret.create_or_update(
+                self.charm,
+                AUTH_KEY_TEMPLATE_LABEL.substitute(id=integration_id),
+                {"key": content.auth_key},
+            )
+            secret.grant(integrations[0])
+            object.__setattr__(content, "auth_key_id", secret.uri)
+
+        for integration in integrations:
+            update_app_data(self.app, integration, asdict(content), json_encoder=SlurmJSONEncoder)
+
+
+class SlurmctldRequirer(Interface):
     """Base interface for applications to retrieve data provided by `slurmctld`.
 
     Notes:
@@ -86,6 +183,10 @@ class SlurmctldRequirer(BaseInterface):
             self._on_relation_created,
         )
         self.framework.observe(
+            self.charm.on[self._integration_name].relation_changed,
+            self._on_relation_changed,
+        )
+        self.framework.observe(
             self.charm.on[self._integration_name].relation_broken,
             self._on_relation_broken,
         )
@@ -94,6 +195,40 @@ class SlurmctldRequirer(BaseInterface):
         """Handle when `slurmctld` is connected to an application."""
         self.on.slurmctld_connected.emit(event.relation)
 
+    def _on_relation_changed(self, event: ops.RelationChangedEvent) -> None:
+        """Handle when data from the primary `slurmctld` unit is ready."""
+        if not event.relation.data.get(event.app):
+            return
+
+        self.on.slurmctld_ready.emit(event.relation)
+
     def _on_relation_broken(self, event: ops.RelationBrokenEvent) -> None:
         """Handle when `slurmctld` is disconnected from an application."""
         self.on.slurmctld_disconnected.emit(event.relation)
+
+    def get_controller_data(
+        self, integration: ops.Relation | None = None, integration_id: int | None = None
+    ) -> ControllerData | None:
+        """Get controller data from the `slurmctld` application databag."""
+        if not integration:
+            integration = self.charm.model.get_relation(self._integration_name, integration_id)
+
+        if not integration:
+            return None
+
+        provider_app_data: dict[str, Any] = dict(integration.data.get(integration.app))  # type: ignore
+        if auth_key_id := provider_app_data.get("auth_key_id"):
+            auth_key = self.charm.model.get_secret(id=auth_key_id)
+            provider_app_data["auth_key"] = auth_key.get_content().get("key")
+        if controllers := provider_app_data.get("controllers"):
+            provider_app_data["controllers"] = json.loads(controllers)
+
+        return ControllerData(**provider_app_data) if provider_app_data else None
+
+    @staticmethod
+    def _is_integration_ready(integration: ops.Relation) -> bool:
+        """Check if the `auth_key_id` and `controllers` fields have been populated."""
+        if not integration.app:
+            return False
+
+        return all(k in integration.data[integration.app] for k in ["auth_key_id", "controllers"])
