@@ -45,13 +45,13 @@ type Condition = Callable[[ops.CharmBase], ConditionEvaluation]
 class Secret:
     """Wrapper for interfacing with Juju secrets."""
 
-    def __init__(self, secret: ops.Secret = None) -> None:
-        self._secret: ops.Secret = secret
+    def __init__(self, secret: ops.Secret) -> None:
+        self._secret = secret
 
     @property
     def uri(self) -> str:
         """Get the URI of this secret."""
-        return self._secret.id if self._secret else ""
+        return self._secret.id or ""
 
     @classmethod
     def create_or_update(cls, charm: ops.CharmBase, label: str, content: dict[str, str]) -> Self:
