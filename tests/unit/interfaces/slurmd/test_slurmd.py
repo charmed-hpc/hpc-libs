@@ -1,0 +1,281 @@
+# Copyright 2025 Canonical Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Unit tests for the `slurmd` integration interface implementation."""
+
+import json
+from collections import defaultdict
+
+import ops
+import pytest
+from mock_slurmd_charms import (
+    EXAMPLE_AUTH_KEY,
+    EXAMPLE_CONTROLLERS,
+    EXAMPLE_PARTITION_CONFIG,
+    SLURMD_INTEGRATION_NAME,
+    MockSlurmdProviderCharm,
+    MockSlurmdRequirerCharm,
+)
+from ops import testing
+from slurmutils import Partition
+
+from hpc_libs.interfaces import SlurmctldReadyEvent, SlurmdDisconnectedEvent, SlurmdReadyEvent
+
+
+@pytest.fixture(scope="function")
+def provider_ctx() -> testing.Context[MockSlurmdProviderCharm]:
+    return testing.Context(
+        MockSlurmdProviderCharm,
+        meta={
+            "name": "slurmd-provider",
+            "provides": {SLURMD_INTEGRATION_NAME: {"interface": "slurmd"}},
+        },
+        config={"options": {"partition-config": {"type": "string", "default": ""}}},
+    )
+
+
+@pytest.fixture(scope="function")
+def requirer_ctx() -> testing.Context[MockSlurmdRequirerCharm]:
+    return testing.Context(
+        MockSlurmdRequirerCharm,
+        meta={
+            "name": "slurmd-requirer",
+            "requires": {SLURMD_INTEGRATION_NAME: {"interface": "slurmd"}},
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "leader",
+    (
+        pytest.param(True, id="leader"),
+        pytest.param(False, id="not leader"),
+    ),
+)
+class TestSlurmdInterface:
+    """Unit tests for the `slurmd` integration interface implementation."""
+
+    # Test provider-side of `slurmd` interface.
+
+    @pytest.mark.parametrize(
+        "joined", (pytest.param(True, id="joined"), pytest.param(False, id="not joined"))
+    )
+    def test_provider_on_config_changed_event(self, provider_ctx, joined, leader) -> None:
+        """Test that the `slurmd` provider correctly manages custom partition configuration."""
+        slurmd_integration_id = 22
+        slurmd_integration = testing.Relation(
+            endpoint=SLURMD_INTEGRATION_NAME,
+            interface="slurmd",
+            id=slurmd_integration_id,
+            remote_app_name="slurmd-requirer",
+        )
+
+        state = provider_ctx.run(
+            provider_ctx.on.config_changed(),
+            testing.State(
+                leader=leader,
+                config={"partition-config": "maxcpuspernode=16 maxmempercpu=8000"},
+                relations={slurmd_integration} if joined else {},
+            ),
+        )
+
+        if leader and joined:
+            integration = state.get_relation(slurmd_integration_id)
+
+            assert "partitionconfig" in integration.local_app_data
+            partition = Partition.from_json(integration.local_app_data["partitionconfig"])
+            assert partition.partition_name == "polaris"
+            assert partition.max_cpus_per_node == 16
+            assert partition.max_mem_per_cpu == 8000
+        elif not leader and joined:
+            integration = state.get_relation(slurmd_integration_id)
+
+            assert integration.local_app_data == {}
+        else:
+            with pytest.raises(KeyError):
+                state.get_relation(slurmd_integration_id)
+
+    def test_provider_on_slurmctld_connected_event(self, provider_ctx, leader) -> None:
+        """Test that the `slurmd` provider correctly sets partition configuration data."""
+        slurmd_integration_id = 22
+        slurmd_integration = testing.Relation(
+            endpoint=SLURMD_INTEGRATION_NAME,
+            interface="slurmd",
+            id=slurmd_integration_id,
+            remote_app_name="slurmd-requirer",
+        )
+
+        state = provider_ctx.run(
+            provider_ctx.on.relation_created(slurmd_integration),
+            testing.State(
+                leader=leader,
+                relations={slurmd_integration},
+            ),
+        )
+
+        integration = state.get_relation(slurmd_integration_id)
+        if leader:
+            # Verify that the leader unit has set partition data in `local_app_data`.
+            assert "partitionconfig" in integration.local_app_data
+            partition = Partition.from_json(integration.local_app_data["partitionconfig"])
+            assert partition.dict() == EXAMPLE_PARTITION_CONFIG.dict()
+        else:
+            # Verify that non-leader units have not set anything in `local_app_data`.
+            assert integration.local_app_data == {}
+
+    @pytest.mark.parametrize(
+        "ready",
+        (
+            pytest.param(True, id="ready"),
+            pytest.param(False, id="not ready"),
+        ),
+    )
+    def test_provider_on_slurmctld_ready_event(self, provider_ctx, ready, leader) -> None:
+        """Test that the `slurmd` provider waits for controller data."""
+        auth_key_secret = testing.Secret(tracked_content={"key": EXAMPLE_AUTH_KEY})
+
+        slurmd_integration_id = 22
+        slurmd_integration = testing.Relation(
+            endpoint=SLURMD_INTEGRATION_NAME,
+            interface="slurmd",
+            id=slurmd_integration_id,
+            remote_app_name="slurmd-requirer",
+            remote_app_data={
+                "auth_key_id": auth_key_secret.id,
+                "controllers": json.dumps(EXAMPLE_CONTROLLERS),
+            }
+            if ready
+            else {"controllers": json.dumps(EXAMPLE_CONTROLLERS)},
+        )
+
+        state = provider_ctx.run(
+            provider_ctx.on.relation_changed(slurmd_integration),
+            testing.State(
+                leader=leader,
+                relations={slurmd_integration},
+                secrets={auth_key_secret},
+            ),
+        )
+
+        if ready:
+            # Assert that the last event emitted on all units is a `SlurmctldReadyEvent`.
+            assert isinstance(provider_ctx.emitted_events[-1], SlurmctldReadyEvent)
+
+            # Assert that `SlurmctldReadyEvent` was emitted only once.
+            occurred = defaultdict(lambda: 0)
+            for event in provider_ctx.emitted_events:
+                occurred[type(event)] += 1
+
+            assert occurred[SlurmctldReadyEvent] == 1
+
+            # Assert that there are no deferred events.
+            assert len(state.deferred) == 0
+
+            # Assert that the unit is not waiting for controller data.
+            assert state.unit_status != ops.WaitingStatus("Waiting for controller data")
+        else:
+            # Assert that the charm defers events if there's missing integration data.
+            assert len(state.deferred) == 1
+            assert state.unit_status == ops.WaitingStatus("Waiting for controller data")
+
+    # Test requires-side of `slurmd` interface.
+
+    @pytest.mark.parametrize(
+        "ready",
+        (
+            pytest.param(True, id="ready"),
+            pytest.param(False, id="not ready"),
+        ),
+    )
+    def test_requirer_on_slurmd_ready_event(self, requirer_ctx, ready, leader) -> None:
+        """Test that the `slurmd` requirer waits for partition data."""
+        slurmd_integration_id = 22
+        slurmd_integration = testing.Relation(
+            endpoint=SLURMD_INTEGRATION_NAME,
+            interface="slurmd",
+            id=slurmd_integration_id,
+            remote_app_name="slurmd-provider",
+            remote_app_data={
+                "partitionconfig": EXAMPLE_PARTITION_CONFIG.json(),
+            }
+            if ready
+            else {"nonce": "xyz123"},
+        )
+
+        state = requirer_ctx.run(
+            requirer_ctx.on.relation_changed(slurmd_integration),
+            testing.State(leader=leader, relations={slurmd_integration}),
+        )
+
+        if leader:
+            if ready:
+                # Assert that the last event emitted on the leader unit is `SlurmdReadyEvent`.
+                assert isinstance(requirer_ctx.emitted_events[-1], SlurmdReadyEvent)
+
+                # Assert that `SlurmdReadyEvent` was emitted only once.
+                occurred = defaultdict(lambda: 0)
+                for event in requirer_ctx.emitted_events:
+                    occurred[type(event)] += 1
+
+                assert occurred[SlurmdReadyEvent] == 1
+
+                # Assert that there are no deferred events.
+                assert len(state.deferred) == 0
+
+                # Assert that the leader unit is not waiting for partition data.
+                assert state.unit_status != ops.WaitingStatus("Waiting for partition data")
+            else:
+                assert state.unit_status == ops.WaitingStatus("Waiting for partition data")
+                assert len(state.deferred) == 1
+        else:
+            # Assert that `SlurmdReadyEvent` is never emitted on non-leader units, nor do they
+            # defer any events event if the `slurmd` provider application is not ready.
+            assert not any(
+                isinstance(event, SlurmdReadyEvent) for event in requirer_ctx.emitted_events
+            )
+            assert len(state.deferred) == 0
+
+    def test_requirer_on_slurmd_disconnected_event(self, requirer_ctx, leader) -> None:
+        """Test that the `slurmd` requirer properly captures when a partition is disconnected."""
+        slurmd_integration_id = 22
+        slurmd_integration = testing.Relation(
+            endpoint=SLURMD_INTEGRATION_NAME,
+            interface="slurmd",
+            id=slurmd_integration_id,
+            remote_app_name="slurmd-provider",
+        )
+
+        requirer_ctx.run(
+            requirer_ctx.on.relation_broken(slurmd_integration),
+            testing.State(
+                leader=leader,
+                relations={slurmd_integration},
+            ),
+        )
+
+        if leader:
+            # Assert that the last event emitted on the leader unit is `SlurmdDisconnectedEvent`.
+            assert isinstance(requirer_ctx.emitted_events[-1], SlurmdDisconnectedEvent)
+
+            # Assert that `SlurmdDisconnectedEvent` was emitted only once.
+            occurred = defaultdict(lambda: 0)
+            for event in requirer_ctx.emitted_events:
+                occurred[type(event)] += 1
+
+            assert occurred[SlurmdDisconnectedEvent] == 1
+        else:
+            # Assert that `SlurmdDisconnectEvent` is never emitted on non-leader units.
+            assert not any(
+                isinstance(event, SlurmdDisconnectedEvent) for event in requirer_ctx.emitted_events
+            )
