@@ -44,5 +44,5 @@ class ServiceManager(Protocol):  # pragma: no cover
         raise NotImplementedError
 
     @abstractmethod
-    def active(self) -> bool:  # noqa D102
+    def is_active(self) -> bool:  # noqa D102
         raise NotImplementedError

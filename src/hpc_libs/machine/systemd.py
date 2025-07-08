@@ -72,7 +72,7 @@ class SystemctlServiceManager(ServiceManager):
         """Restart service."""
         systemctl("restart", self._service)
 
-    def active(self) -> bool:
+    def is_active(self) -> bool:
         """Check if service is active."""
         _, exit_code = systemctl("is-active", "--quiet", self._service, check=False)
         return exit_code == 0
