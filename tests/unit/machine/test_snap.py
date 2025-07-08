@@ -109,7 +109,7 @@ class TestSnapServiceManager:
 
     @pytest.fixture
     def service_manager(self, service_name_is_snap_name) -> SnapServiceManager:
-        """Create a `SystemctlServiceManager` object."""
+        """Create a `SnapServiceManager` object."""
         return SnapServiceManager(
             "slurmctld", snap="slurm" if not service_name_is_snap_name else None
         )
@@ -166,7 +166,7 @@ class TestSnapServiceManager:
             pytest.param((SNAP_INFO_NOT_INSTALLED, 1), False, id="not installed")
         )
     )
-    def test_active(
+    def test_is_active(
         self,
         service_manager,
         mock_snap,
@@ -177,7 +177,7 @@ class TestSnapServiceManager:
         """Test the `active` method."""
         mock_snap.return_value = mock_result
         if installed:
-            status = service_manager.active()
+            status = service_manager.is_active()
             if service_name_is_snap_name:
                 mock_snap.assert_called_with("info", "slurmctld")
                 assert status is False
@@ -186,7 +186,7 @@ class TestSnapServiceManager:
                 assert status is True
         else:
             with pytest.raises(SnapError) as exec_info:
-                service_manager.active()
+                service_manager.is_active()
 
             assert exec_info.type == SnapError
             if service_name_is_snap_name:

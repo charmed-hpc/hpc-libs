@@ -49,7 +49,19 @@ def snap(*args: str, **kwargs: Any) -> tuple[str, int]:  # noqa D417
 
 
 class SnapServiceManager(ServiceManager):
-    """Control a service using `snap`."""
+    """Control a service using `snap`.
+
+    Args:
+        service: Name of the service to control using `snap`
+        snap: Name of the installed snap package that the service belongs.
+
+    Notes:
+        - Snap services names are typically represented as `<snap>.<service>` where `snap` is
+          the name of the installed snap package, and `service` is the name of the service
+          provided by the installed snap package. However, if the service name is the same as
+          the installed package name, then the snap service name will be represented as just
+          `service`. Because of this behavior, `snap` is an optional argument.
+    """
 
     def __init__(self, service: str, /, snap: str | None = None) -> None:
         self._service = f"{snap}.{service}" if snap else service
@@ -75,7 +87,7 @@ class SnapServiceManager(ServiceManager):
         """Restart service."""
         snap("restart", self._service)
 
-    def active(self) -> bool:
+    def is_active(self) -> bool:
         """Check if service is active."""
         info = yaml.safe_load(snap("info", self._snap)[0])
         services = info.get("services")
@@ -85,5 +97,5 @@ class SnapServiceManager(ServiceManager):
             )
 
         # Do not check for "active" in the service's state because the
-        # word "active" is also part of "inactive" :)
+        # word "active" is also part of "inactive".
         return "inactive" not in services[self._service]
