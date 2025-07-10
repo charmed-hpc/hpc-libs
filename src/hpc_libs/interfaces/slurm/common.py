@@ -33,7 +33,13 @@ from typing import Any
 import ops
 from slurmutils import Model
 
-from hpc_libs.interfaces.base import ConditionEvaluation, Interface, Secret, update_app_data
+from hpc_libs.interfaces.base import (
+    ConditionEvaluation,
+    Interface,
+    load_secret,
+    update_app_data,
+    update_secret,
+)
 from hpc_libs.utils import leader
 
 AUTH_KEY_TEMPLATE_LABEL = Template("integration-$id-auth-key-secret")
@@ -124,11 +130,11 @@ class SlurmctldProvider(Interface):
     @leader
     def _on_relation_broken(self, event: ops.RelationBrokenEvent) -> None:
         """Revoke the departing application's access to Slurm secrets."""
-        if auth_secret := Secret.load(
+        if auth_secret := load_secret(
             self.charm,
             label=AUTH_KEY_TEMPLATE_LABEL.substitute(id=event.relation.id),
         ):
-            auth_secret.remove()
+            auth_secret.remove_all_revisions()
 
     @leader
     def set_controller_data(
@@ -148,17 +154,18 @@ class SlurmctldProvider(Interface):
             return
 
         if integration_id is not None:
-            integrations = [
-                integration for integration in integrations if integration.id == integration_id
-            ]
+            if integration := self.get_integration(integration_id):
+                secret = update_secret(
+                    self.charm,
+                    AUTH_KEY_TEMPLATE_LABEL.substitute(id=integration_id),
+                    {"key": content.auth_key},
+                )
+                secret.grant(integration)
+                object.__setattr__(content, "auth_key_id", secret.id)
 
-            secret = Secret.create_or_update(
-                self.charm,
-                AUTH_KEY_TEMPLATE_LABEL.substitute(id=integration_id),
-                {"key": content.auth_key},
-            )
-            secret.grant(integrations[0])
-            object.__setattr__(content, "auth_key_id", secret.uri)
+                integrations = [integration]
+            else:
+                raise IndexError(f"integration id {integration_id} does not exist")
 
         for integration in integrations:
             update_app_data(self.app, integration, asdict(content), json_encoder=SlurmJSONEncoder)
