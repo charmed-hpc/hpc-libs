@@ -38,7 +38,7 @@ from hpc_libs.utils import leader
 class ComputeData:
     """Data provided by the Slurm compute service, `slurmd`."""
 
-    partitionconfig: Partition
+    partition: Partition
 
 
 def partition_not_ready(charm: ops.CharmBase) -> ConditionEvaluation:
@@ -162,15 +162,15 @@ class SlurmdRequirer(SlurmctldProvider):
             return None
 
         provider_app_data: dict[str, Any] = dict(integration.data.get(integration.app))  # type: ignore
-        if config := provider_app_data.get("partitionconfig"):
-            provider_app_data["partitionconfig"] = Partition.from_json(config)
+        if config := provider_app_data.get("partition"):
+            provider_app_data["partition"] = Partition.from_json(config)
 
         return ComputeData(**provider_app_data) if provider_app_data else None
 
     @staticmethod
     def _is_integration_ready(integration: ops.Relation) -> bool:
-        """Check if the `partitionconfig` field has been populated."""
+        """Check if the `partition` field has been populated."""
         if not integration.app:
             return False
 
-        return "partitionconfig" in integration.data[integration.app]
+        return "partition" in integration.data[integration.app]
