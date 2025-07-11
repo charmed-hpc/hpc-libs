@@ -53,7 +53,7 @@ def partition_not_ready(charm: ops.CharmBase) -> ConditionEvaluation:
 
 
 class SlurmdReadyEvent(ops.RelationEvent):
-    """Event emitted the primary `slurmd` unit is ready.
+    """Event emitted when the primary `slurmd` unit is ready.
 
     Notes:
         The `slurmd` application is ready once the leader unit is fully initialized
@@ -98,9 +98,10 @@ class SlurmdProvider(SlurmctldRequirer):
             return
 
         if integration_id is not None:
-            integrations = [
-                integration for integration in integrations if integration.id == integration_id
-            ]
+            if integration := self.get_integration(integration_id):
+                integrations = [integration]
+            else:
+                raise IndexError(f"integration id {integration_id} does not exist")
 
         for integration in integrations:
             update_app_data(self.app, integration, asdict(data), json_encoder=SlurmJSONEncoder)
