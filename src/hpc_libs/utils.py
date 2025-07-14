@@ -71,7 +71,7 @@ def plog(o: object) -> str:
     return pprint.pformat(o, indent=4, sort_dicts=False)
 
 
-def refresh(check: Callable[[ops.CharmBase], ops.StatusBase] | None = None) -> Callable:
+def refresh[T: ops.CharmBase](check: Callable[[T], ops.StatusBase] | None = None) -> Callable:
     """Refresh a charm's status after running an event handler.
 
     Args:
@@ -80,7 +80,7 @@ def refresh(check: Callable[[ops.CharmBase], ops.StatusBase] | None = None) -> C
 
     def decorator(func: Callable[..., None]):
         @wraps(func)
-        def wrapper(charm: ops.CharmBase, *args: ops.EventBase, **kwargs: Any) -> None:
+        def wrapper(charm: T, *args: ops.EventBase, **kwargs: Any) -> None:
             event, *_ = args
 
             try:
@@ -94,7 +94,7 @@ def refresh(check: Callable[[ops.CharmBase], ops.StatusBase] | None = None) -> C
                     event.__class__.__name__,
                     charm.__class__.__name__,
                     func.__name__,
-                    charm.unit.name,
+                    charm.unit.name,  # type: ignore
                     e.status,
                 )
                 charm.unit.status = e.status
@@ -104,12 +104,12 @@ def refresh(check: Callable[[ops.CharmBase], ops.StatusBase] | None = None) -> C
                 _logger.debug(
                     "running status check function `%s` to determine new status for unit '%s'",
                     check.__name__,
-                    charm.unit.name,
+                    charm.unit.name,  # type: ignore
                 )
                 status = check(charm)
                 _logger.debug(
                     "new status for unit '%s' determined to be `%s`",
-                    charm.unit.name,
+                    charm.unit.name,  # type: ignore
                     status,
                 )
                 charm.unit.status = status
