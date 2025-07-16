@@ -22,17 +22,15 @@ __all__ = [
     "OCIRuntimeRequirer",
 ]
 
-from dataclasses import asdict, dataclass
-from typing import Any
+from dataclasses import dataclass
 
 import ops
 from slurmutils import OCIConfig
 
-from hpc_libs.interfaces.base import update_app_data
 from hpc_libs.interfaces.slurm.common import (
     SlurmctldProvider,
     SlurmctldRequirer,
-    SlurmJSONEncoder,
+    encoder,
 )
 from hpc_libs.utils import leader
 
@@ -46,6 +44,10 @@ class OCIRuntimeData:
     """
 
     ociconfig: OCIConfig
+
+    def __post_init__(self) -> None:  # noqa D105
+        if isinstance(self.ociconfig, dict):  # `ociconfig` is not fully deserialized.
+            object.__setattr__(self, "ociconfig", OCIConfig(self.ociconfig))
 
 
 class OCIRuntimeReadyEvent(ops.RelationEvent):
@@ -102,7 +104,7 @@ class OCIRuntimeProvider(SlurmctldRequirer):
             ]
 
         for integration in integrations:
-            update_app_data(self.app, integration, asdict(data), json_encoder=SlurmJSONEncoder)
+            integration.save(data, self.app, encoder=encoder)
 
 
 class OCIRuntimeRequirer(SlurmctldProvider):
@@ -162,8 +164,4 @@ class OCIRuntimeRequirer(SlurmctldProvider):
         if not integration:
             return None
 
-        provider_app_data: dict[str, Any] = dict(integration.data.get(integration.app))  # type: ignore
-        if config := provider_app_data.get("ociconfig"):
-            provider_app_data["ociconfig"] = OCIConfig.from_json(config)
-
-        return OCIRuntimeData(**provider_app_data) if provider_app_data else None
+        return integration.load(OCIRuntimeData, integration.app)

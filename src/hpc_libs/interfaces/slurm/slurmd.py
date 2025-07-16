@@ -23,14 +23,17 @@ __all__ = [
     "partition_not_ready",
 ]
 
-from dataclasses import asdict, dataclass
-from typing import Any
+from dataclasses import dataclass
 
 import ops
 from slurmutils import Partition
 
-from hpc_libs.interfaces.base import ConditionEvaluation, update_app_data
-from hpc_libs.interfaces.slurm.common import SlurmctldProvider, SlurmctldRequirer, SlurmJSONEncoder
+from hpc_libs.interfaces.base import ConditionEvaluation
+from hpc_libs.interfaces.slurm.common import (
+    SlurmctldProvider,
+    SlurmctldRequirer,
+    encoder,
+)
 from hpc_libs.utils import leader
 
 
@@ -39,6 +42,10 @@ class ComputeData:
     """Data provided by the Slurm compute service, `slurmd`."""
 
     partition: Partition
+
+    def __post_init__(self) -> None:  # noqa D105
+        if isinstance(self.partition, dict):  # `partition` is not fully deserialized.
+            object.__setattr__(self, "partition", Partition(self.partition))
 
 
 def partition_not_ready(charm: ops.CharmBase) -> ConditionEvaluation:
@@ -104,7 +111,7 @@ class SlurmdProvider(SlurmctldRequirer):
                 raise IndexError(f"integration id {integration_id} does not exist")
 
         for integration in integrations:
-            update_app_data(self.app, integration, asdict(data), json_encoder=SlurmJSONEncoder)
+            integration.save(data, self.app, encoder=encoder)
 
 
 class SlurmdRequirer(SlurmctldProvider):
@@ -162,11 +169,7 @@ class SlurmdRequirer(SlurmctldProvider):
         if not integration:
             return None
 
-        provider_app_data: dict[str, Any] = dict(integration.data.get(integration.app))  # type: ignore
-        if config := provider_app_data.get("partition"):
-            provider_app_data["partition"] = Partition.from_json(config)
-
-        return ComputeData(**provider_app_data) if provider_app_data else None
+        return integration.load(ComputeData, integration.app)
 
     @staticmethod
     def _is_integration_ready(integration: ops.Relation) -> bool:

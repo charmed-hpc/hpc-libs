@@ -45,7 +45,7 @@ classifiers = [
 
 [project.optional-dependencies]
 interfaces = [
-    "ops ~= 2.22",
+    "ops ~= 2.23",
     "slurmutils <= 2.0.0, >= 1.1.1",
 ]
 machine = [

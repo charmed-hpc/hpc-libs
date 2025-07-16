@@ -19,14 +19,14 @@ __all__ = [
     "SlurmctldConnectedEvent",
     "SlurmctldReadyEvent",
     "SlurmctldDisconnectedEvent",
-    "SlurmJSONEncoder",
     "SlurmctldProvider",
     "SlurmctldRequirer",
     "controller_not_ready",
+    "encoder",
 ]
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from string import Template
 from typing import Any
 
@@ -37,7 +37,6 @@ from hpc_libs.interfaces.base import (
     ConditionEvaluation,
     Interface,
     load_secret,
-    update_app_data,
     update_secret,
 )
 from hpc_libs.utils import leader
@@ -45,15 +44,12 @@ from hpc_libs.utils import leader
 AUTH_KEY_TEMPLATE_LABEL = Template("integration-$id-auth-key-secret")
 
 
-class SlurmJSONEncoder(json.JSONEncoder):
-    """Generic JSON encoder for Slurm-related integration data."""
+def encoder(value: Any) -> str:
+    """Encode Slurm integration data."""
+    if isinstance(value, Model):
+        value = value.dict()
 
-    def default(self, o: Any) -> Any:  # noqa D102
-        # Serialize Slurm configuration object if it is present.
-        if isinstance(o, Model):
-            return o.dict()
-
-        return super().default(o)
+    return json.dumps(value)
 
 
 @dataclass(frozen=True)
@@ -167,12 +163,11 @@ class SlurmctldProvider(Interface):
             else:
                 raise IndexError(f"integration id {integration_id} does not exist")
 
-        # Remove secrets from integration data.
-        content = asdict(content)
-        content.pop("auth_key", None)
+        # Redact secrets. "***" indicates that an interface did not unlock a secret.
+        object.__setattr__(content, "auth_key", "***")
 
         for integration in integrations:
-            update_app_data(self.app, integration, content, json_encoder=SlurmJSONEncoder)
+            integration.save(content, self.app, encoder=encoder)
 
 
 class SlurmctldRequirer(Interface):
@@ -227,16 +222,12 @@ class SlurmctldRequirer(Interface):
         if not integration:
             return None
 
-        provider_app_data: dict[str, Any] = dict(integration.data.get(integration.app))  # type: ignore
-        if auth_key_id := provider_app_data.get("auth_key_id"):
-            auth_key_id = json.loads(auth_key_id)
-            provider_app_data["auth_key_id"] = auth_key_id
-            auth_key = self.charm.model.get_secret(id=auth_key_id)
-            provider_app_data["auth_key"] = auth_key.get_content().get("key")
-        if controllers := provider_app_data.get("controllers"):
-            provider_app_data["controllers"] = json.loads(controllers)
+        data = integration.load(ControllerData, integration.app)
+        if data.auth_key_id:
+            auth_key = self.charm.model.get_secret(id=data.auth_key_id)
+            object.__setattr__(data, "auth_key", auth_key.get_content().get("key"))
 
-        return ControllerData(**provider_app_data) if provider_app_data else None
+        return data
 
     @staticmethod
     def _is_integration_ready(integration: ops.Relation) -> bool:
