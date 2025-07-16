@@ -92,8 +92,8 @@ class TestSystemctlServiceManager:
         "mock_result,expected",
         (
             pytest.param(("", 0), True, id="active"),
-            pytest.param( ("", 1), False, id="not active"),
-        )
+            pytest.param(("", 1), False, id="not active"),
+        ),
     )
     def test_is_active(self, service_manager, mock_systemctl, mock_result, expected) -> None:
         """Test the `active` method."""
