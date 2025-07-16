@@ -39,7 +39,7 @@ def systemctl(*args: str, **kwargs: Any) -> tuple[str, int]:  # noqa D417
         result = call("systemctl", *args, **kwargs)
     except CalledProcessError as e:
         raise SystemdError(
-            f"systemctl command '{" ".join(e.cmd)}' failed with exit code {e.returncode}. "
+            f"systemctl command '{' '.join(e.cmd)}' failed with exit code {e.returncode}. "
             + f"reason: {e.stderr}"
         )
 

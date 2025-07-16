@@ -41,7 +41,7 @@ def snap(*args: str, **kwargs: Any) -> tuple[str, int]:  # noqa D417
         result = call("snap", *args, **kwargs)
     except CalledProcessError as e:
         raise SnapError(
-            f"snap command '{" ".join(e.cmd)}' failed with exit code {e.returncode}. "
+            f"snap command '{' '.join(e.cmd)}' failed with exit code {e.returncode}. "
             + f"reason: {e.stderr}"
         )
 

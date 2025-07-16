@@ -102,7 +102,7 @@ def test_snap(mocker: MockerFixture) -> None:
     (
         pytest.param(True, id="service name = snap name"),
         pytest.param(False, id="service name != snap name"),
-    )
+    ),
 )
 class TestSnapServiceManager:
     """Test the `SnapServiceManager` class."""
@@ -163,8 +163,8 @@ class TestSnapServiceManager:
         "mock_result,installed",
         (
             pytest.param((SNAP_INFO, 0), True, id="installed"),
-            pytest.param((SNAP_INFO_NOT_INSTALLED, 1), False, id="not installed")
-        )
+            pytest.param((SNAP_INFO_NOT_INSTALLED, 1), False, id="not installed"),
+        ),
     )
     def test_is_active(
         self,
