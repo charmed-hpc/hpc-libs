@@ -240,6 +240,7 @@ class TestSlurmdInterface:
             id=slurmd_integration_id,
             remote_app_name="slurmd-requirer",
             remote_app_data={
+                "auth_key": '"***"',
                 "auth_key_id": json.dumps(auth_key_secret.id),
                 "controllers": json.dumps(EXAMPLE_CONTROLLERS),
             }
@@ -310,8 +311,8 @@ class TestSlurmdInterface:
             if ready:
                 integration = state.get_relation(slurmd_integration_id)
 
-                # Assert `auth_key` is not shared through the application databag.
-                assert "auth_key" not in integration.local_app_data
+                # Assert `auth_key` is redacted in the integration data.
+                assert integration.local_app_data["auth_key"] == '"***"'
 
                 # Assert that `auth_key_id` is set to the `auth_key` secret URI.
                 assert integration.local_app_data["auth_key_id"] != "null"

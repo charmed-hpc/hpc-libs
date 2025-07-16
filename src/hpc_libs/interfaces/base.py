@@ -20,16 +20,14 @@ __all__ = [
     "Interface",
     "update_secret",
     "load_secret",
-    "update_app_data",
     "integration_exists",
     "integration_not_exists",
     "block_when",
     "wait_when",
 ]
 
-import json
 import logging
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from functools import partial, wraps
 from typing import Any
 
@@ -171,28 +169,6 @@ class Interface(ops.Object):
               considered ready.
         """
         return True
-
-
-def update_app_data(
-    app: ops.Application,
-    integration: ops.Relation,
-    data: Mapping[str, Any],
-    *,
-    json_encoder: type[json.JSONEncoder] | None = None,
-) -> None:
-    """Update an application's databag in an integration.
-
-    Args:
-        app: Application to update.
-        integration: Integration holding application's databag.
-        data: Content to update application databag with.
-        json_encoder: Optional json encoder to use for encoding complex data types.
-
-    Raises:
-        ops.RelationDataError: Raised if non-leader unit attempts to update application data.
-    """
-    data = {k: json.dumps(v, cls=json_encoder) for k, v in data.items()}
-    integration.data[app].update(data)
 
 
 def integration_exists(name: str) -> Condition:
