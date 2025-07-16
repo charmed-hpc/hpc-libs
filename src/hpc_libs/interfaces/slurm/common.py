@@ -167,8 +167,12 @@ class SlurmctldProvider(Interface):
             else:
                 raise IndexError(f"integration id {integration_id} does not exist")
 
+        # Remove secrets from integration data.
+        content = asdict(content)
+        content.pop("auth_key", None)
+
         for integration in integrations:
-            update_app_data(self.app, integration, asdict(content), json_encoder=SlurmJSONEncoder)
+            update_app_data(self.app, integration, content, json_encoder=SlurmJSONEncoder)
 
 
 class SlurmctldRequirer(Interface):
@@ -218,13 +222,15 @@ class SlurmctldRequirer(Interface):
     ) -> ControllerData | None:
         """Get controller data from the `slurmctld` application databag."""
         if not integration:
-            integration = self.charm.model.get_relation(self._integration_name, integration_id)
+            integration = self.get_integration(integration_id)
 
         if not integration:
             return None
 
         provider_app_data: dict[str, Any] = dict(integration.data.get(integration.app))  # type: ignore
         if auth_key_id := provider_app_data.get("auth_key_id"):
+            auth_key_id = json.loads(auth_key_id)
+            provider_app_data["auth_key_id"] = auth_key_id
             auth_key = self.charm.model.get_secret(id=auth_key_id)
             provider_app_data["auth_key"] = auth_key.get_content().get("key")
         if controllers := provider_app_data.get("controllers"):
