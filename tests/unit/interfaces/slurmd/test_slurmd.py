@@ -114,7 +114,8 @@ class MockSlurmdRequirerCharm(ops.CharmBase):
             ControllerData(
                 auth_key=EXAMPLE_AUTH_KEY,
                 controllers=EXAMPLE_CONTROLLERS,
-            )
+            ),
+            integration_id=event.relation.id,
         )
 
     def _on_slurmd_disconnected(self, event: SlurmdDisconnectedEvent) -> None: ...
@@ -239,7 +240,7 @@ class TestSlurmdInterface:
             id=slurmd_integration_id,
             remote_app_name="slurmd-requirer",
             remote_app_data={
-                "auth_key_id": auth_key_secret.id,
+                "auth_key_id": json.dumps(auth_key_secret.id),
                 "controllers": json.dumps(EXAMPLE_CONTROLLERS),
             }
             if ready
@@ -307,6 +308,14 @@ class TestSlurmdInterface:
 
         if leader:
             if ready:
+                integration = state.get_relation(slurmd_integration_id)
+
+                # Assert `auth_key` is not shared through the application databag.
+                assert "auth_key" not in integration.local_app_data
+
+                # Assert that `auth_key_id` is set to the `auth_key` secret URI.
+                assert integration.local_app_data["auth_key_id"] != "null"
+
                 # Assert that the last event emitted on the leader unit is `SlurmdReadyEvent`.
                 assert isinstance(requirer_ctx.emitted_events[-1], SlurmdReadyEvent)
 
