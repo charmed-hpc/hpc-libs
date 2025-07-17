@@ -34,16 +34,18 @@ class EnvManager:
     def __init__(self, file: str | PathLike) -> None:
         self._file = file
 
-    def get(self, key: str) -> str | None:
+    def get(self, key: str, /) -> str | None:
         """Get value of an environment variable in the environment file."""
         return dotenv.get_key(self._file, key.upper())
 
-    def set(self, config: Mapping[str, Any]) -> None:
+    def set(self, config: Mapping[str, Any], /, quote: bool = True) -> None:
         """Set environment variables in the environment file."""
         for key, value in config.items():
-            dotenv.set_key(self._file, key.upper(), str(value))
+            dotenv.set_key(
+                self._file, key.upper(), str(value), quote_mode="always" if quote else "never"
+            )
 
-    def unset(self, key: str) -> None:
+    def unset(self, key: str, /) -> None:
         """Unset an environment variable in the environment file."""
         dotenv.unset_key(self._file, key.upper())
 
