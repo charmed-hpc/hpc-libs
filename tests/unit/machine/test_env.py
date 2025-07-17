@@ -35,9 +35,18 @@ class TestEnvManager:
 
     def test_set(self, env_manager: EnvManager) -> None:
         """Test the `set` method."""
-        env_manager.set({"SLURMD_CONFIG_SERVER": "localhost:6817"})
+        env_manager.set({"SLURMD_OPTIONS": "localhost:6817"})
         with open(ENV_FILE, "rt") as fin:
-            assert fin.read() == "SLURMD_CONFIG_SERVER='localhost:6817'\n"
+            assert fin.read() == "SLURMD_OPTIONS='localhost:6817'\n"
+
+        # Test with automatic quoting disabled.
+        env_manager.set(
+            {"SLURMD_OPTIONS": "--conf 'realmemory=16000 cpus=8 features=dynamic'"}, quote=False
+        )
+        with open(ENV_FILE, "rt") as fin:
+            assert (
+                fin.read() == "SLURMD_OPTIONS=--conf 'realmemory=16000 cpus=8 features=dynamic'\n"
+            )
 
     def test_get(self, env_manager: EnvManager) -> None:
         """Test the `get` method."""
