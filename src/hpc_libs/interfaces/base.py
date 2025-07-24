@@ -99,7 +99,7 @@ class Interface(ops.Object):
             if self._is_integration_active(integration)
         ]
 
-    def get_integration(self, integration_id: int | None = None) -> ops.Relation | None:
+    def get_integration(self, integration_id: int | None = None) -> ops.Relation:
         """Get integration instance.
 
         Args:
@@ -108,8 +108,20 @@ class Interface(ops.Object):
                 multiple integrations of the same name in Juju's database.
                 For example, you must pass the integration ID if multiple
                 `slurmd` partitions exist.
+
+        Raises:
+            ops.RelationNotFoundError:
+                Raised if integration is not established. If `integration_id` is set,
+                raised if integration instance is not established or found.
+            ops.TooManyRelatedAppsError:
+                Raised if `integration_id` is not passed as an argument,
+                but multiple applications is are integrated on the same endpoint.
         """
-        return self.charm.model.get_relation(self._integration_name, integration_id)
+        integration = self.charm.model.get_relation(self._integration_name, integration_id)
+        if not integration:
+            raise ops.RelationNotFoundError()
+
+        return integration
 
     def ready(self, integration_id: int | None = None) -> bool:
         """Check if an integration is ready.
@@ -168,6 +180,9 @@ class Interface(ops.Object):
               have specific fields that must be populated in an integration databag to be
               considered ready.
         """
+        if not integration.app:
+            return False
+
         return True
 
 

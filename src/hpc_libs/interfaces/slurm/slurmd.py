@@ -70,7 +70,7 @@ class SlurmdReadyEvent(ops.RelationEvent):
 
 
 class SlurmdDisconnectedEvent(ops.RelationEvent):
-    """Event emitted when the `slurmd` applications is disconnected from `slurmctld`."""
+    """Event emitted when the `slurmd` application is disconnected from `slurmctld`."""
 
 
 class _SlurmdRequirerEvents(ops.ObjectEvents):
@@ -85,7 +85,15 @@ class SlurmdProvider(SlurmctldRequirer):
 
     This interface should be used on `slurmd` units to retrieve controller data
     from the `slurmctld` application leader.
+
+    Notes:
+        - Only the leading `slurmd` unit can handle when the integration with
+          `slurmctld` is created.
     """
+
+    @leader
+    def _on_relation_created(self, event: ops.RelationCreatedEvent) -> None:
+        super()._on_relation_created(event)
 
     @leader
     def set_compute_data(self, data: ComputeData, /, integration_id: int | None = None) -> None:
@@ -100,18 +108,22 @@ class SlurmdProvider(SlurmctldRequirer):
         Warnings:
             Only the `slurmd` application leader can set compute configuration data.
         """
-        integrations = self.charm.model.relations.get(self._integration_name)
-        if not integrations:
-            return
-
+        integrations = self.integrations
         if integration_id is not None:
-            if integration := self.get_integration(integration_id):
-                integrations = [integration]
-            else:
-                raise IndexError(f"integration id {integration_id} does not exist")
+            integrations = [self.get_integration(integration_id)]
 
         for integration in integrations:
             integration.save(data, self.app, encoder=encoder)
+
+    @staticmethod
+    def _is_integration_ready(integration: ops.Relation) -> bool:
+        if not integration.app:
+            return False
+
+        return all(
+            k in integration.data[integration.app]
+            for k in ["auth_key_id", "controllers", "nhc_args"]
+        )
 
 
 class SlurmdRequirer(SlurmctldProvider):
@@ -151,23 +163,15 @@ class SlurmdRequirer(SlurmctldProvider):
 
     def get_compute_data(
         self, /, integration: ops.Relation | None = None, integration_id: int | None = None
-    ) -> ComputeData | None:
+    ) -> ComputeData:
         """Get compute data from the `slurmd` application databag.
 
         Args:
             integration: Integration instance to pull compute data from.
             integration_id: Integration ID to pull compute data from.
-
-        Raises:
-            ops.TooManyRelatedAppsError:
-                Raised if neither `integration` nor `integration_id` are passed as arguments,
-                but require-side application is integrated with multiple `slurmd` applications.
         """
         if not integration:
             integration = self.get_integration(integration_id)
-
-        if not integration:
-            return None
 
         return integration.load(ComputeData, integration.app)
 
