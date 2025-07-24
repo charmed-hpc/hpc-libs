@@ -40,6 +40,7 @@ from hpc_libs.utils import refresh
 SLURMD_INTEGRATION_NAME = "slurmd"
 EXAMPLE_AUTH_KEY = "xyz123=="
 EXAMPLE_CONTROLLERS = ["127.0.0.1", "127.0.1.1"]
+EXAMPLE_NHC_ARGS = "-x -v"
 EXAMPLE_PARTITION_CONFIG = Partition(partitionname="polaris")
 
 
@@ -84,6 +85,7 @@ class MockSlurmdProviderCharm(ops.CharmBase):
         # Assume `remote_app_data` contains and `auth_key` and `controllers` list.
         assert data.auth_key == EXAMPLE_AUTH_KEY
         assert data.controllers == EXAMPLE_CONTROLLERS
+        assert data.nhc_args == EXAMPLE_NHC_ARGS
 
 
 class MockSlurmdRequirerCharm(ops.CharmBase):
@@ -243,6 +245,7 @@ class TestSlurmdInterface:
                 "auth_key": '"***"',
                 "auth_key_id": json.dumps(auth_key_secret.id),
                 "controllers": json.dumps(EXAMPLE_CONTROLLERS),
+                "nhc_args": json.dumps(EXAMPLE_NHC_ARGS),
             }
             if ready
             else {"controllers": json.dumps(EXAMPLE_CONTROLLERS)},
@@ -315,7 +318,7 @@ class TestSlurmdInterface:
                 assert integration.local_app_data["auth_key"] == '"***"'
 
                 # Assert that `auth_key_id` is set to the `auth_key` secret URI.
-                assert integration.local_app_data["auth_key_id"] != "null"
+                assert integration.local_app_data["auth_key_id"] != '""'
 
                 # Assert that the last event emitted on the leader unit is `SlurmdReadyEvent`.
                 assert isinstance(requirer_ctx.emitted_events[-1], SlurmdReadyEvent)
@@ -372,7 +375,7 @@ class TestSlurmdInterface:
 
             assert occurred[SlurmdDisconnectedEvent] == 1
         else:
-            # Assert that `SlurmdDisconnectEvent` is never emitted on non-leader units.
+            # Assert that `SlurmdDisconnectedEvent` is never emitted on non-leader units.
             assert not any(
                 isinstance(event, SlurmdDisconnectedEvent) for event in requirer_ctx.emitted_events
             )
