@@ -77,7 +77,23 @@ class OCIRuntimeProvider(SlurmctldRequirer):
     Notes:
         This interface should be used on the OCI runtime application leader to
         provide OCI runtime information to the `slurmctld` application leader.
+
+    Notes:
+        - Only the leading `oci_runtime` unit should interact with `slurmctld`.
+          All other `oci_runtime` units are peers to be directed by the leader.
     """
+
+    @leader
+    def _on_relation_created(self, event: ops.RelationCreatedEvent) -> None:
+        super()._on_relation_created(event)
+
+    @leader
+    def _on_relation_changed(self, event: ops.RelationChangedEvent) -> None:
+        super()._on_relation_changed(event)
+
+    @leader
+    def _on_relation_broken(self, event: ops.RelationBrokenEvent) -> None:
+        super()._on_relation_broken(event)
 
     @leader
     def set_oci_runtime_data(
@@ -92,16 +108,11 @@ class OCIRuntimeProvider(SlurmctldRequirer):
                 all integrations will be updated.
 
         Warnings:
-            Only the OCI runtime application leader can set OCI runtime configuration data.
+            - Only the OCI runtime application leader can set OCI runtime configuration data.
         """
-        integrations = self.charm.model.relations.get(self._integration_name)
-        if not integrations:
-            return
-
+        integrations = self.integrations
         if integration_id is not None:
-            integrations = [
-                integration for integration in integrations if integration.id == integration_id
-            ]
+            integrations = [self.get_integration(integration_id)]
 
         for integration in integrations:
             integration.save(data, self.app, encoder=encoder)
@@ -111,9 +122,9 @@ class OCIRuntimeRequirer(SlurmctldProvider):
     """Integration interface implementation for `slurm_oci_runtime` requirers.
 
     Notes:
-        This interface should be used on the `slurmctld` application leader
-        retrieve data from the OCI runtime provider and edit the `oci.conf`
-        configuration file.
+        - This interface should be used on the `slurmctld` application leader
+          retrieve data from the OCI runtime provider and edit the `oci.conf`
+          configuration file.
     """
 
     on = _OCIRunTimeRequirerEvents()  # type: ignore
@@ -152,16 +163,8 @@ class OCIRuntimeRequirer(SlurmctldProvider):
         Args:
             integration: Integration instance to pull OCI runtime configuration data from.
             integration_id: Integration ID to pull OCI runtime configuration data from.
-
-        Raises:
-            ops.TooManyRelatedAppsError:
-                Raised if neither `integration` nor `integration_id` are passed as arguments,
-                but require-side application is integrated with multiple OCI runtime applications.
         """
         if not integration:
-            integration = self.charm.model.get_relation(self._integration_name, integration_id)
-
-        if not integration:
-            return None
+            integration = self.get_integration(integration_id)
 
         return integration.load(OCIRuntimeData, integration.app)
