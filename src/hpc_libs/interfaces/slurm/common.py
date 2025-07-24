@@ -26,12 +26,12 @@ __all__ = [
 ]
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from string import Template
 from typing import Any
 
 import ops
-from slurmutils import Model
+from slurmutils import Model, SlurmConfig
 
 from hpc_libs.interfaces.base import (
     ConditionEvaluation,
@@ -42,6 +42,7 @@ from hpc_libs.interfaces.base import (
 from hpc_libs.utils import leader
 
 AUTH_KEY_TEMPLATE_LABEL = Template("integration-$id-auth-key-secret")
+JWT_KEY_TEMPLATE_LABEL = Template("integration-$id-jwt-key-secret")
 
 
 def encoder(value: Any) -> str:
@@ -58,16 +59,35 @@ class ControllerData:
 
     Attributes:
         auth_key: Base64-encoded string representing the `auth/slurm` key.
+        auth_key_id: ID of the `auth/slurm` key Juju secret for this integration instance.
         controllers:
             List of controller addresses for that can be used by Slurm services
             for contacting the `slurmctld` application. The first entry in the list is the
             primary `slurmctld` service. Other entries are failovers.
-        auth_key_id: ID of the `auth/slurm` key Juju secret for this integration instance.
+        jwt_key: Base64-encoded string representing the Slurm JWT key.
+        jwt_key_id: ID of the Slurm JWT key Juju secret for this integration instance.
+        nhc_args: Arguments to pass to `nhc` - Node Health Check - on compute nodes.
+        slurmconfig: Hard copy of the `slurm.conf` configuration file.
+
+    Notes:
+        - `auth_key` and `auth_key_id` are required by all Slurm daemons.
+        - `controllers` is required by `sackd` and `slurmd`.
+        - `jwt_key` and `jwt_key_id` are required by `slurmdbd`.
+        - `nhc_args` is required by `slurmd`.
+        - `slurmconfig` is required by `slurmrestd`.
     """
 
-    auth_key: str
-    controllers: list[str]
-    auth_key_id: str | None = None
+    auth_key: str = ""
+    auth_key_id: str = ""
+    controllers: list[str] = field(default_factory=list)
+    jwt_key: str = ""
+    jwt_key_id: str = ""
+    nhc_args: str = ""
+    slurmconfig: SlurmConfig | None = None
+
+    def __post_init__(self) -> None:  # noqa D105
+        if isinstance(self.slurmconfig, dict):  # `slurmconfig` is not fully deserialized.
+            object.__setattr__(self, "slurmconfig", SlurmConfig(self.slurmconfig))
 
 
 def controller_not_ready(charm: ops.CharmBase) -> ConditionEvaluation:
@@ -132,42 +152,56 @@ class SlurmctldProvider(Interface):
         ):
             auth_secret.remove_all_revisions()
 
+        if jwt_secret := load_secret(
+            self.charm,
+            label=JWT_KEY_TEMPLATE_LABEL.substitute(id=event.relation.id),
+        ):
+            jwt_secret.remove_all_revisions()
+
     @leader
     def set_controller_data(
-        self, content: ControllerData, /, integration_id: int | None = None
+        self, data: ControllerData, /, integration_id: int | None = None
     ) -> None:
         """Set `slurmctld` controller data for Slurm services on application databag.
 
         Args:
-            content: `slurmctld` provider data to set on application databag.
+            data: Controller data to set on an integrations' application databag.
             integration_id:
-                Grant an integration access to Slurm secrets. This argument must not
-                be set to the ID of an integration if that integration requires
-                access to Slurm secrets.
+                (Optional) ID of integration to update. If no integration id is passed,
+                all integrations will be updated. This argument must be set for a
+                integration to be granted access to the `auth_key` and `jwt_key` secrets.
         """
-        integrations = self.charm.model.relations.get(self._integration_name)
-        if not integrations:
-            return
+        integrations = self.integrations
 
         if integration_id is not None:
-            if integration := self.get_integration(integration_id):
+            integration = self.get_integration(integration_id)
+
+            if data.auth_key:
                 secret = update_secret(
                     self.charm,
                     AUTH_KEY_TEMPLATE_LABEL.substitute(id=integration_id),
-                    {"key": content.auth_key},
+                    {"key": data.auth_key},
                 )
                 secret.grant(integration)
-                object.__setattr__(content, "auth_key_id", secret.id)
+                object.__setattr__(data, "auth_key_id", secret.id)
 
-                integrations = [integration]
-            else:
-                raise IndexError(f"integration id {integration_id} does not exist")
+            if data.jwt_key:
+                secret = update_secret(
+                    self.charm,
+                    JWT_KEY_TEMPLATE_LABEL.substitute(id=integration_id),
+                    {"key": data.jwt_key},
+                )
+                secret.grant(integration)
+                object.__setattr__(data, "jwt_key_id", secret.id)
+
+            integrations = [integration]
 
         # Redact secrets. "***" indicates that an interface did not unlock a secret.
-        object.__setattr__(content, "auth_key", "***")
+        object.__setattr__(data, "auth_key", "***")
+        object.__setattr__(data, "jwt_key", "***")
 
         for integration in integrations:
-            integration.save(content, self.app, encoder=encoder)
+            integration.save(data, self.app, encoder=encoder)
 
 
 class SlurmctldRequirer(Interface):
@@ -214,25 +248,30 @@ class SlurmctldRequirer(Interface):
 
     def get_controller_data(
         self, integration: ops.Relation | None = None, integration_id: int | None = None
-    ) -> ControllerData | None:
+    ) -> ControllerData:
         """Get controller data from the `slurmctld` application databag."""
         if not integration:
             integration = self.get_integration(integration_id)
-
-        if not integration:
-            return None
 
         data = integration.load(ControllerData, integration.app)
         if data.auth_key_id:
             auth_key = self.charm.model.get_secret(id=data.auth_key_id)
             object.__setattr__(data, "auth_key", auth_key.get_content().get("key"))
+        if data.jwt_key_id:
+            jwt_key = self.charm.model.get_secret(id=data.jwt_key_id)
+            object.__setattr__(data, "jwt_key", jwt_key.get_content().get("key"))
 
         return data
 
     @staticmethod
     def _is_integration_ready(integration: ops.Relation) -> bool:
-        """Check if the `auth_key_id` and `controllers` fields have been populated."""
+        """Check if the `auth_key_id` and `controllers` fields have been populated.
+
+        Notes:
+            - This method should be overridden if a Slurm service requires more than just
+              the `auth_key` secret id from `slurmctld` to successfully start.
+        """
         if not integration.app:
             return False
 
-        return all(k in integration.data[integration.app] for k in ["auth_key_id", "controllers"])
+        return "auth_key_id" in integration.data[integration.app]
