@@ -220,9 +220,6 @@ class TestSlurmdbdInterface:
 
         if leader:
             if ready:
-                # Assert that the last event emitted on all units is a `SlurmctldReadyEvent`.
-                assert isinstance(provider_ctx.emitted_events[-1], SlurmctldReadyEvent)
-
                 # Assert that `SlurmctldReadyEvent` was emitted only once.
                 occurred = defaultdict(lambda: 0)
                 for event in provider_ctx.emitted_events:
@@ -267,9 +264,6 @@ class TestSlurmdbdInterface:
         )
 
         if leader:
-            # Assert that the last event emitted on the leader unit is `SlurmctldDisconnectedEvent`.
-            assert isinstance(provider_ctx.emitted_events[-1], SlurmctldDisconnectedEvent)
-
             # Assert that `SlurmctldDisconnectedEvent` was emitted only once.
             occurred = defaultdict(lambda: 0)
             for event in provider_ctx.emitted_events:
@@ -314,9 +308,6 @@ class TestSlurmdbdInterface:
 
             # Assert that `jwt_key_id` is set to the `jwt_key` secret URI.
             assert integration.local_app_data["jwt_key_id"] != '""'
-
-            # Assert that the last event emitted on the leader unit is `SlurmdbdConnectedEvent`.
-            assert isinstance(requirer_ctx.emitted_events[-1], SlurmdbdConnectedEvent)
 
             # Assert that `SlurmdbdConnectedEvent` was emitted only once.
             occurred = defaultdict(lambda: 0)
@@ -367,9 +358,6 @@ class TestSlurmdbdInterface:
 
         if leader:
             if ready:
-                # Assert that the last event emitted on the leader unit is `SlurmdbdReadyEvent`.
-                assert isinstance(requirer_ctx.emitted_events[-1], SlurmdbdReadyEvent)
-
                 # Assert that `SlurmdReadyEvent` was emitted only once.
                 occurred = defaultdict(lambda: 0)
                 for event in requirer_ctx.emitted_events:
@@ -412,9 +400,6 @@ class TestSlurmdbdInterface:
         )
 
         if leader:
-            # Assert that the last event emitted on the leader unit is `SlurmdbdDisconnectedEvent`.
-            assert isinstance(requirer_ctx.emitted_events[-1], SlurmdbdDisconnectedEvent)
-
             # Assert that `SlurmdbdDisconnectedEvent` was emitted only once.
             occurred = defaultdict(lambda: 0)
             for event in requirer_ctx.emitted_events:

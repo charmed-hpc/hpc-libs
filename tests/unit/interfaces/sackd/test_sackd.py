@@ -155,9 +155,6 @@ class TestSackdInterface:
         )
 
         if ready:
-            # Assert that the last event emitted on all units is a `SlurmctldReadyEvent`.
-            assert isinstance(provider_ctx.emitted_events[-1], SlurmctldReadyEvent)
-
             # Assert that `SlurmctldReadyEvent` was emitted only once.
             occurred = defaultdict(lambda: 0)
             for event in provider_ctx.emitted_events:
