@@ -29,7 +29,7 @@ from dataclasses import dataclass
 import ops
 
 from hpc_libs.interfaces.base import ConditionEvaluation
-from hpc_libs.interfaces.slurm.common import SlurmctldProvider, SlurmctldRequirer, encoder
+from hpc_libs.interfaces.slurm.common import SlurmctldProvider, SlurmctldRequirer
 from hpc_libs.utils import leader
 
 
@@ -52,7 +52,7 @@ def database_not_ready(charm: ops.CharmBase) -> ConditionEvaluation:
         - This condition check requirers that the charm has a public `slurmdbd`
           attribute that has a public `ready` method.
     """
-    not_ready = not charm.slurmdbd.ready()  # type: ignore
+    not_ready = not charm.slurmdbd.is_ready()  # type: ignore
     return not_ready, "Waiting for database data" if not_ready else ""
 
 
@@ -92,6 +92,9 @@ class SlurmdbdProvider(SlurmctldRequirer):
           All other `slurmdbd` units are peers to be directed by the leader.
     """
 
+    def __init__(self, charm: ops.CharmBase, /, integration_name: str) -> None:
+        super().__init__(charm, integration_name, required_app_data={"auth_key_id", "jwt_key_id"})
+
     @leader
     def _on_relation_created(self, event: ops.RelationCreatedEvent) -> None:
         super()._on_relation_created(event)
@@ -117,19 +120,7 @@ class SlurmdbdProvider(SlurmctldRequirer):
         Warnings:
             - Only the `slurmdbd` application leader can set database configuration data.
         """
-        integrations = self.integrations
-        if integration_id is not None:
-            integrations = [self.get_integration(integration_id)]
-
-        for integration in integrations:
-            integration.save(data, self.app, encoder=encoder)
-
-    @staticmethod
-    def _is_integration_ready(integration: ops.Relation) -> bool:
-        if not integration.app:
-            return False
-
-        return all(k in integration.data[integration.app] for k in ["auth_key_id", "jwt_key_id"])
+        self._save_integration_data(data, self.app, integration_id)
 
 
 class SlurmdbdRequirer(SlurmctldProvider):
@@ -142,8 +133,8 @@ class SlurmdbdRequirer(SlurmctldProvider):
 
     on = _SlurmdbdRequirerEvents()  # type: ignore
 
-    def __init__(self, charm: ops.CharmBase, integration_name: str) -> None:
-        super().__init__(charm, integration_name)
+    def __init__(self, charm: ops.CharmBase, /, integration_name: str) -> None:
+        super().__init__(charm, integration_name, required_app_data={"hostname"})
 
         self.framework.observe(
             self.charm.on[self._integration_name].relation_created,
@@ -177,19 +168,10 @@ class SlurmdbdRequirer(SlurmctldProvider):
         super()._on_relation_broken(event)
         self.on.slurmdbd_disconnected.emit(event.relation)
 
-    def get_database_data(
-        self, integration: ops.Relation | None = None, integration_id: int | None = None
-    ) -> DatabaseData:
-        """Get database data from the `slurmdbd` application databag."""
-        if not integration:
-            integration = self.get_integration(integration_id)
+    def get_database_data(self, integration_id: int | None = None) -> DatabaseData:
+        """Get database data from the `slurmdbd` application databag.
 
-        return integration.load(DatabaseData, integration.app)
-
-    @staticmethod
-    def _is_integration_ready(integration: ops.Relation) -> bool:
-        """Check if the `slurmdbd` integration is ready."""
-        if not integration.app:
-            return False
-
-        return "hostname" in integration.data[integration.app]
+        Args:
+            integration_id: Integration ID to pull database data from.
+        """
+        return self._load_integration_data(DatabaseData, integration_id=integration_id).pop()

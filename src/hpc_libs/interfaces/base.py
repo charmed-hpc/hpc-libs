@@ -27,7 +27,7 @@ __all__ = [
 ]
 
 import logging
-from collections.abc import Callable, MutableSet, Set
+from collections.abc import Callable, Iterable
 from functools import partial, wraps
 from typing import Any, Literal
 
@@ -96,7 +96,7 @@ class Interface(ops.Object):
         /,
         integration_name: str,
         *,
-        required_app_data: Set[str] | None = None,
+        required_app_data: Iterable[str] | None = None,
     ) -> None:
         super().__init__(charm, integration_name)
         self.charm = charm
@@ -202,7 +202,7 @@ class Interface(ops.Object):
         *,
         target: Literal["app", "unit"] = "app",
         decoder: Callable[[str], Any] | None = None,
-    ) -> MutableSet[T]:
+    ) -> list[T]:
         """Load integration data.
 
         Args:
@@ -220,9 +220,9 @@ class Interface(ops.Object):
             integration = self.get_integration(integration_id)
 
         if target == "app":
-            return {integration.load(cls, integration.app, decoder=decoder)}
+            return [integration.load(cls, integration.app, decoder=decoder)]
         else:
-            return {integration.load(cls, unit, decoder=decoder) for unit in integration.units}
+            return [integration.load(cls, unit, decoder=decoder) for unit in integration.units]
 
     def _save_integration_data(
         self,

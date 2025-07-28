@@ -43,12 +43,8 @@ class SlurmrestdProvider(SlurmctldRequirer):
     from the `slurmctld` application leader.
     """
 
-    @staticmethod
-    def _is_integration_ready(integration: ops.Relation) -> bool:
-        if not integration.app:
-            return False
-
-        return all(k in integration.data[integration.app] for k in ["auth_key_id", "slurmconfig"])
+    def __init__(self, charm: ops.CharmBase, /, integration_name: str) -> None:
+        super().__init__(charm, integration_name, required_app_data={"auth_key_id", "slurmconfig"})
 
 
 class SlurmrestdRequirer(SlurmctldProvider):
@@ -60,7 +56,7 @@ class SlurmrestdRequirer(SlurmctldProvider):
 
     on = _SlurmrestdRequirerEvents()  # type: ignore
 
-    def __init__(self, charm: ops.CharmBase, integration_name: str) -> None:
+    def __init__(self, charm: ops.CharmBase, /, integration_name: str) -> None:
         super().__init__(charm, integration_name)
 
         self.framework.observe(

@@ -35,7 +35,7 @@ from hpc_libs.interfaces.slurm.common import (
 from hpc_libs.utils import leader
 
 
-@dataclass
+@dataclass(frozen=True)
 class OCIRuntimeData:
     """Data provided by the OCI runtime.
 
@@ -46,7 +46,10 @@ class OCIRuntimeData:
     ociconfig: OCIConfig
 
     def __post_init__(self) -> None:  # noqa D105
-        if isinstance(self.ociconfig, dict):  # `ociconfig` is not fully deserialized.
+        # If `ociconfig` is determined to be a built-in dictionary object when deserializing
+        # integration data, the `ociconfig` field will be automatically parsed into a
+        # `OCIConfig` object.
+        if isinstance(self.ociconfig, dict):
             object.__setattr__(self, "ociconfig", OCIConfig(self.ociconfig))
 
 
@@ -104,18 +107,13 @@ class OCIRuntimeProvider(SlurmctldRequirer):
         Args:
             data: OCI runtime data to set on an integrations' application databag.
             integration_id:
-                (Optional) ID of integration to update. If no integration ID is passed,
+                ID of integration to update. If no integration ID is passed,
                 all integrations will be updated.
 
         Warnings:
             - Only the OCI runtime application leader can set OCI runtime configuration data.
         """
-        integrations = self.integrations
-        if integration_id is not None:
-            integrations = [self.get_integration(integration_id)]
-
-        for integration in integrations:
-            integration.save(data, self.app, encoder=encoder)
+        self._save_integration_data(data, self.app, integration_id, encoder=encoder)
 
 
 class OCIRuntimeRequirer(SlurmctldProvider):
@@ -144,9 +142,7 @@ class OCIRuntimeRequirer(SlurmctldProvider):
     @leader
     def _on_relation_changed(self, event: ops.RelationChangedEvent) -> None:
         """Handle when data from the OCI runtime application leader is ready."""
-        provider_app = event.relation.app
-
-        if not event.relation.data.get(provider_app):
+        if not event.relation.data.get(event.relation.app):
             return
 
         self.on.oci_runtime_ready.emit(event.relation)
@@ -155,16 +151,10 @@ class OCIRuntimeRequirer(SlurmctldProvider):
     def _on_relation_broken(self, event: OCIRuntimeDisconnectedEvent) -> None:
         self.on.oci_runtime_disconnected.emit(event.relation)
 
-    def get_oci_runtime_data(
-        self, /, integration: ops.Relation | None = None, integration_id: int | None = None
-    ) -> OCIRuntimeData | None:
+    def get_oci_runtime_data(self, integration_id: int | None = None) -> OCIRuntimeData:
         """Get OCI runtime data from the `slurm_oci_runtime` application databag.
 
         Args:
-            integration: Integration instance to pull OCI runtime configuration data from.
             integration_id: Integration ID to pull OCI runtime configuration data from.
         """
-        if not integration:
-            integration = self.get_integration(integration_id)
-
-        return integration.load(OCIRuntimeData, integration.app)
+        return self._load_integration_data(OCIRuntimeData, integration_id=integration_id).pop()
