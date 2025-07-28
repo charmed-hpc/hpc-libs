@@ -27,9 +27,9 @@ __all__ = [
 ]
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, MutableSet, Set
 from functools import partial, wraps
-from typing import Any
+from typing import Any, Literal
 
 import ops
 
@@ -77,18 +77,33 @@ def load_secret(charm: ops.CharmBase, label: str) -> ops.Secret | None:
 class Interface(ops.Object):
     """Base interface for HPC-related integrations.
 
+    Args:
+        charm: Charm instance the integration belongs to.
+        integration_name: Name of the integration.
+        required_app_data: Required application data for the integration to be considered ready.
+
     Notes:
-        This interface is not intended to be used directly. Child interfaces should inherit
-        from this interface to provide common macros typically used within custom integration
-        interface implementations.
+        - This interface is not intended to be used directly. Child interfaces should inherit
+          from this interface to provide common macros typically used within custom integration
+          interface implementations.
+        - An integration is considered "ready" once it is exporting the necessary data for
+          a requirer/provider to successfully process a `RelationChangedEvent`.
     """
 
-    def __init__(self, charm: ops.CharmBase, integration_name: str) -> None:
+    def __init__(
+        self,
+        charm: ops.CharmBase,
+        /,
+        integration_name: str,
+        *,
+        required_app_data: Set[str] | None = None,
+    ) -> None:
         super().__init__(charm, integration_name)
         self.charm = charm
         self.app = charm.app
         self.unit = charm.unit
         self._integration_name = integration_name
+        self._required_app_data = required_app_data if required_app_data else set()
 
     @property
     def integrations(self) -> list[ops.Relation]:
@@ -123,7 +138,7 @@ class Interface(ops.Object):
 
         return integration
 
-    def ready(self, integration_id: int | None = None) -> bool:
+    def is_ready(self, integration_id: int | None = None) -> bool:
         """Check if an integration is ready.
 
         Args:
@@ -133,7 +148,7 @@ class Interface(ops.Object):
                 be checked to determine if they are ready.
 
         Raises:
-            IndexError: Raised if the provided integration ID does not exist.
+            ops.RelationNotFoundError: Raised if the provided integration ID does not exist.
 
         Notes:
             - This method can be used to check if a provider answered with the requested
@@ -151,9 +166,9 @@ class Interface(ops.Object):
         if integration := self.get_integration(integration_id):
             return self._is_integration_ready(integration)
         else:
-            raise IndexError(f"integration id {integration_id} does not exist")
+            raise ops.RelationNotFoundError()
 
-    def joined(self) -> bool:
+    def is_joined(self) -> bool:
         """Check if the integration is joined.
 
         Warnings:
@@ -171,19 +186,67 @@ class Interface(ops.Object):
         except (RuntimeError, ops.ModelError):
             return False
 
-    @staticmethod
-    def _is_integration_ready(integration: ops.Relation) -> bool:
-        """Check if an integration is ready.
-
-        Notes:
-            - This static method should be overridden by inheriting child classes if they
-              have specific fields that must be populated in an integration databag to be
-              considered ready.
-        """
+    def _is_integration_ready(self, integration: ops.Relation) -> bool:
+        """Check if an integration is ready."""
         if not integration.app:
             return False
 
-        return True
+        return all(k in integration.data[integration.app] for k in self._required_app_data)
+
+    def _load_integration_data[T](
+        self,
+        cls: type[T],
+        /,
+        integration: ops.Relation | None = None,
+        integration_id: int | None = None,
+        *,
+        target: Literal["app", "unit"] = "app",
+        decoder: Callable[[str], Any] | None = None,
+    ) -> MutableSet[T]:
+        """Load integration data.
+
+        Args:
+            cls: Dataclass that will wrap integration data.
+            integration: Integration instance to pull data.
+            integration_id: Integration ID to pull data from.
+            target: Pull data from either the application or unit databag.
+            decoder: Callable that will be used to decode each field.
+
+        Returns:
+            A `MutableSet` containing integration data. If `target` is set to `"app"`, the
+            returned `MutableSet` will only contain one object holding the application data.
+        """
+        if not integration:
+            integration = self.get_integration(integration_id)
+
+        if target == "app":
+            return {integration.load(cls, integration.app, decoder=decoder)}
+        else:
+            return {integration.load(cls, unit, decoder=decoder) for unit in integration.units}
+
+    def _save_integration_data(
+        self,
+        data: object,
+        /,
+        target: ops.Application | ops.Unit,
+        integration_id: int | None = None,
+        *,
+        encoder: Callable[[Any], str] | None = None,
+    ) -> None:
+        """Save integration data.
+
+        Args:
+            data: Dataclass object to save to the integration.
+            target: Location to save object.
+            integration_id: ID of integration to update.
+            encoder: Callable that will be used to encode each field.
+        """
+        integrations = self.integrations
+        if integration_id is not None:
+            integrations = [self.get_integration(integration_id)]
+
+        for integration in integrations:
+            integration.save(data, target, encoder=encoder)
 
 
 def integration_exists(name: str) -> Condition:
