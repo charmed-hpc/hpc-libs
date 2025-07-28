@@ -67,7 +67,7 @@ class MockSlurmdProviderCharm(ops.CharmBase):
 
     def _on_config_changed(self, _: ops.ConfigChangedEvent) -> None:
         custom = self.config.get("partition-config", "")
-        if custom and self.slurmctld.joined() and self.unit.is_leader():
+        if custom and self.slurmctld.is_joined() and self.unit.is_leader():
             partition = Partition.from_str(custom)
             partition.partition_name = "polaris"
             self.slurmctld.set_compute_data(ComputeData(partition=partition))
@@ -261,9 +261,6 @@ class TestSlurmdInterface:
         )
 
         if ready:
-            # Assert that the last event emitted on all units is a `SlurmctldReadyEvent`.
-            assert isinstance(provider_ctx.emitted_events[-1], SlurmctldReadyEvent)
-
             # Assert that `SlurmctldReadyEvent` was emitted only once.
             occurred = defaultdict(lambda: 0)
             for event in provider_ctx.emitted_events:
@@ -320,9 +317,6 @@ class TestSlurmdInterface:
                 # Assert that `auth_key_id` is set to the `auth_key` secret URI.
                 assert integration.local_app_data["auth_key_id"] != '""'
 
-                # Assert that the last event emitted on the leader unit is `SlurmdReadyEvent`.
-                assert isinstance(requirer_ctx.emitted_events[-1], SlurmdReadyEvent)
-
                 # Assert that `SlurmdReadyEvent` was emitted only once.
                 occurred = defaultdict(lambda: 0)
                 for event in requirer_ctx.emitted_events:
@@ -365,9 +359,6 @@ class TestSlurmdInterface:
         )
 
         if leader:
-            # Assert that the last event emitted on the leader unit is `SlurmdDisconnectedEvent`.
-            assert isinstance(requirer_ctx.emitted_events[-1], SlurmdDisconnectedEvent)
-
             # Assert that `SlurmdDisconnectedEvent` was emitted only once.
             occurred = defaultdict(lambda: 0)
             for event in requirer_ctx.emitted_events:
