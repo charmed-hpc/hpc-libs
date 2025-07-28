@@ -26,6 +26,7 @@ __all__ = [
 ]
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from string import Template
 from typing import Any
@@ -70,11 +71,10 @@ class ControllerData:
         slurmconfig: Hard copy of the `slurm.conf` configuration file.
 
     Notes:
-        - `auth_key` and `auth_key_id` are required by all Slurm daemons.
-        - `controllers` is required by `sackd` and `slurmd`.
-        - `jwt_key` and `jwt_key_id` are required by `slurmdbd`.
-        - `nhc_args` is required by `slurmd`.
-        - `slurmconfig` is required by `slurmrestd`.
+        - `sackd` requires:         `auth_key_id`, `controllers`
+        - `slurmd` requires:        `auth_key_id`, `controllers`, `nhc_params`
+        - `slurmdbd` requires:      `auth_key_id`, `jwt_key_id`
+        - `slurmrestd` requires:    `auth_key_id`, `slurmconfig`
     """
 
     auth_key: str = ""
@@ -86,7 +86,10 @@ class ControllerData:
     slurmconfig: SlurmConfig | None = None
 
     def __post_init__(self) -> None:  # noqa D105
-        if isinstance(self.slurmconfig, dict):  # `slurmconfig` is not fully deserialized.
+        # If `slurmconfig` is determined to be a built-in dictionary object when deserializing
+        # integration data, the `slurmconfig` field will be automatically parsed into a
+        # `SlurmConfig` object.
+        if isinstance(self.slurmconfig, dict):
             object.__setattr__(self, "slurmconfig", SlurmConfig(self.slurmconfig))
 
 
@@ -97,7 +100,7 @@ def controller_not_ready(charm: ops.CharmBase) -> ConditionEvaluation:
         - This condition check requires that the charm has a public `slurmctld`
           attribute that has a public `ready` method.
     """
-    not_ready = not charm.slurmctld.ready()  # type: ignore
+    not_ready = not charm.slurmctld.is_ready()  # type: ignore
     return not_ready, "Waiting for controller data" if not_ready else ""
 
 
@@ -130,13 +133,20 @@ class SlurmctldProvider(Interface):
     """Base interface for `slurmctld` providers to consume Slurm service data.
 
     Notes:
-        This interface is not intended to be used directly. Child interfaces should inherit
-        from this interface so that they can provide `slurmctld` data and consume configuration
-        provide by other Slurm services such as `slurmd` or `slurmdbd`.
+        - This interface is not intended to be used directly. Child interfaces should inherit
+          from this interface so that they can provide `slurmctld` data and consume configuration
+          provide by other Slurm services such as `slurmd` or `slurmdbd`.
     """
 
-    def __init__(self, charm: ops.CharmBase, integration_name: str) -> None:
-        super().__init__(charm, integration_name)
+    def __init__(
+        self,
+        charm: ops.CharmBase,
+        /,
+        integration_name: str,
+        *,
+        required_app_data: Iterable[str] | None = None,
+    ) -> None:
+        super().__init__(charm, integration_name, required_app_data=required_app_data)
 
         self.framework.observe(
             self.charm.on[self._integration_name].relation_broken,
@@ -171,8 +181,6 @@ class SlurmctldProvider(Interface):
                 all integrations will be updated. This argument must be set for a
                 integration to be granted access to the `auth_key` and `jwt_key` secrets.
         """
-        integrations = self.integrations
-
         if integration_id is not None:
             integration = self.get_integration(integration_id)
 
@@ -194,29 +202,33 @@ class SlurmctldProvider(Interface):
                 secret.grant(integration)
                 object.__setattr__(data, "jwt_key_id", secret.id)
 
-            integrations = [integration]
-
         # Redact secrets. "***" indicates that an interface did not unlock a secret.
         object.__setattr__(data, "auth_key", "***")
         object.__setattr__(data, "jwt_key", "***")
 
-        for integration in integrations:
-            integration.save(data, self.app, encoder=encoder)
+        self._save_integration_data(data, self.app, integration_id, encoder=encoder)
 
 
 class SlurmctldRequirer(Interface):
     """Base interface for applications to retrieve data provided by `slurmctld`.
 
     Notes:
-        This interface is not intended to be used directly. Child interfaces should inherit
-        from this is interface to consume data from the Slurm controller `slurmctld` and provide
-        necessary configuration information to `slurmctld`.
+        - This interface is not intended to be used directly. Child interfaces should inherit
+          from this is interface to consume data from the Slurm controller `slurmctld` and provide
+          necessary configuration information to `slurmctld`.
     """
 
     on = _SlurmctldRequirerEvents()  # type: ignore
 
-    def __init__(self, charm: ops.CharmBase, integration_name: str) -> None:
-        super().__init__(charm, integration_name)
+    def __init__(
+        self,
+        charm: ops.CharmBase,
+        /,
+        integration_name: str,
+        *,
+        required_app_data: Iterable[str] | None = None,
+    ) -> None:
+        super().__init__(charm, integration_name, required_app_data=required_app_data)
 
         self.framework.observe(
             self.charm.on[self._integration_name].relation_created,
@@ -246,14 +258,9 @@ class SlurmctldRequirer(Interface):
         """Handle when `slurmctld` is disconnected from an application."""
         self.on.slurmctld_disconnected.emit(event.relation)
 
-    def get_controller_data(
-        self, integration: ops.Relation | None = None, integration_id: int | None = None
-    ) -> ControllerData:
+    def get_controller_data(self, integration_id: int | None = None) -> ControllerData:
         """Get controller data from the `slurmctld` application databag."""
-        if not integration:
-            integration = self.get_integration(integration_id)
-
-        data = integration.load(ControllerData, integration.app)
+        data = self._load_integration_data(ControllerData, integration_id=integration_id).pop()
         if data.auth_key_id:
             auth_key = self.charm.model.get_secret(id=data.auth_key_id)
             object.__setattr__(data, "auth_key", auth_key.get_content().get("key"))
@@ -262,16 +269,3 @@ class SlurmctldRequirer(Interface):
             object.__setattr__(data, "jwt_key", jwt_key.get_content().get("key"))
 
         return data
-
-    @staticmethod
-    def _is_integration_ready(integration: ops.Relation) -> bool:
-        """Check if the `auth_key_id` and `controllers` fields have been populated.
-
-        Notes:
-            - This method should be overridden if a Slurm service requires more than just
-              the `auth_key` secret id from `slurmctld` to successfully start.
-        """
-        if not integration.app:
-            return False
-
-        return "auth_key_id" in integration.data[integration.app]

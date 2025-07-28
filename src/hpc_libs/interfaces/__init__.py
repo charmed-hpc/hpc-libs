@@ -40,6 +40,7 @@ __all__ = [
     "SackdConnectedEvent",
     # From `slurm/slurmd.py`
     "ComputeData",
+    "SlurmdConnectedEvent",
     "SlurmdReadyEvent",
     "SlurmdDisconnectedEvent",
     "SlurmdProvider",
@@ -88,6 +89,7 @@ from .slurm.sackd import (
 )
 from .slurm.slurmd import (
     ComputeData,
+    SlurmdConnectedEvent,
     SlurmdDisconnectedEvent,
     SlurmdProvider,
     SlurmdReadyEvent,

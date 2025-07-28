@@ -16,6 +16,7 @@
 
 __all__ = [
     "ComputeData",
+    "SlurmdConnectedEvent",
     "SlurmdReadyEvent",
     "SlurmdDisconnectedEvent",
     "SlurmdProvider",
@@ -44,7 +45,10 @@ class ComputeData:
     partition: Partition
 
     def __post_init__(self) -> None:  # noqa D105
-        if isinstance(self.partition, dict):  # `partition` is not fully deserialized.
+        # If `partition` is determined to be a built-in dictionary object when deserializing
+        # integration data, the `partition` field will be automatically parsed into a
+        # `Partition` object.
+        if isinstance(self.partition, dict):
             object.__setattr__(self, "partition", Partition(self.partition))
 
 
@@ -55,8 +59,12 @@ def partition_not_ready(charm: ops.CharmBase) -> ConditionEvaluation:
         - This condition check requires that the charm has a public `slurmd`
           attribute that has a public `ready` method.
     """
-    not_ready = not charm.slurmd.ready()  # type: ignore
+    not_ready = not charm.slurmd.is_ready()  # type: ignore
     return not_ready, "Waiting for partition data" if not_ready else ""
+
+
+class SlurmdConnectedEvent(ops.RelationEvent):
+    """Event emitted when a `slurmd` application is connected to `slurmctld`."""
 
 
 class SlurmdReadyEvent(ops.RelationEvent):
@@ -76,6 +84,7 @@ class SlurmdDisconnectedEvent(ops.RelationEvent):
 class _SlurmdRequirerEvents(ops.ObjectEvents):
     """`slurmd` requirer events."""
 
+    slurmd_connected = ops.EventSource(SlurmdConnectedEvent)
     slurmd_ready = ops.EventSource(SlurmdReadyEvent)
     slurmd_disconnected = ops.EventSource(SlurmdDisconnectedEvent)
 
@@ -91,6 +100,11 @@ class SlurmdProvider(SlurmctldRequirer):
           `slurmctld` is created.
     """
 
+    def __init__(self, charm: ops.CharmBase, /, integration_name: str) -> None:
+        super().__init__(
+            charm, integration_name, required_app_data={"auth_key_id", "controllers", "nhc_args"}
+        )
+
     @leader
     def _on_relation_created(self, event: ops.RelationCreatedEvent) -> None:
         super()._on_relation_created(event)
@@ -102,28 +116,13 @@ class SlurmdProvider(SlurmctldRequirer):
         Args:
             data: Compute data to set on an integrations' application databag.
             integration_id:
-                (Optional) ID of integration to update. If no integration ID is passed,
+                ID of integration to update. If no integration ID is passed,
                 all integrations will be updated.
 
         Warnings:
-            Only the `slurmd` application leader can set compute configuration data.
+            - Only the `slurmd` application leader can set compute configuration data.
         """
-        integrations = self.integrations
-        if integration_id is not None:
-            integrations = [self.get_integration(integration_id)]
-
-        for integration in integrations:
-            integration.save(data, self.app, encoder=encoder)
-
-    @staticmethod
-    def _is_integration_ready(integration: ops.Relation) -> bool:
-        if not integration.app:
-            return False
-
-        return all(
-            k in integration.data[integration.app]
-            for k in ["auth_key_id", "controllers", "nhc_args"]
-        )
+        self._save_integration_data(data, self.app, integration_id, encoder=encoder)
 
 
 class SlurmdRequirer(SlurmctldProvider):
@@ -135,9 +134,12 @@ class SlurmdRequirer(SlurmctldProvider):
 
     on = _SlurmdRequirerEvents()  # type: ignore
 
-    def __init__(self, charm: ops.CharmBase, integration_name: str) -> None:
-        super().__init__(charm, integration_name)
+    def __init__(self, charm: ops.CharmBase, /, integration_name: str) -> None:
+        super().__init__(charm, integration_name, required_app_data={"partition"})
 
+        self.framework.observe(
+            self.charm.on[self._integration_name].relation_created, self._on_relation_created
+        )
         self.framework.observe(
             self.charm.on[self._integration_name].relation_changed,
             self._on_relation_changed,
@@ -146,6 +148,11 @@ class SlurmdRequirer(SlurmctldProvider):
             self.charm.on[self._integration_name].relation_broken,
             self._on_relation_broken,
         )
+
+    @leader
+    def _on_relation_created(self, event: ops.RelationCreatedEvent) -> None:
+        """Handle when a `slurmd` application is connected to `slurmctld`."""
+        self.on.slurmd_connected.emit(event.relation)
 
     @leader
     def _on_relation_changed(self, event: ops.RelationChangedEvent) -> None:
@@ -157,28 +164,14 @@ class SlurmdRequirer(SlurmctldProvider):
 
     @leader
     def _on_relation_broken(self, event: ops.RelationBrokenEvent) -> None:
-        """Handle when a `slurmd` application is disconnected from the controller, `slurmctld`."""
+        """Handle when a `slurmd` application is disconnected from `slurmctld`."""
         super()._on_relation_broken(event)
         self.on.slurmd_disconnected.emit(event.relation)
 
-    def get_compute_data(
-        self, /, integration: ops.Relation | None = None, integration_id: int | None = None
-    ) -> ComputeData:
+    def get_compute_data(self, integration_id: int | None = None) -> ComputeData:
         """Get compute data from the `slurmd` application databag.
 
         Args:
-            integration: Integration instance to pull compute data from.
             integration_id: Integration ID to pull compute data from.
         """
-        if not integration:
-            integration = self.get_integration(integration_id)
-
-        return integration.load(ComputeData, integration.app)
-
-    @staticmethod
-    def _is_integration_ready(integration: ops.Relation) -> bool:
-        """Check if the `partition` field has been populated."""
-        if not integration.app:
-            return False
-
-        return "partition" in integration.data[integration.app]
+        return self._load_integration_data(ComputeData, integration_id=integration_id).pop()
