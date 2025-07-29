@@ -30,3 +30,7 @@ class SnapError(Error):
 
 class SystemdError(Error):
     """Error raised if a `systemd`-related operation fails."""
+
+
+class IngressAddressNotFoundError(Error):
+    """Error raised if a charm is unable to access its ingress address."""
