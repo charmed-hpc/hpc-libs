@@ -212,17 +212,25 @@ class Interface(ops.Object):
             target: Pull data from either the application or unit databag.
             decoder: Callable that will be used to decode each field.
 
+        Raises:
+            ValueError: Raised if an incorrect target is provided.
+
         Returns:
-            A `MutableSet` containing integration data. If `target` is set to `"app"`, the
-            returned `MutableSet` will only contain one object holding the application data.
+            A list containing integration data. If `target` is set to `"app"`, the
+            returned list will only contain one object holding the application data.
         """
         if not integration:
             integration = self.get_integration(integration_id)
 
-        if target == "app":
-            return [integration.load(cls, integration.app, decoder=decoder)]
-        else:
-            return [integration.load(cls, unit, decoder=decoder) for unit in integration.units]
+        match target:
+            case "app":
+                return [integration.load(cls, integration.app, decoder=decoder)]
+            case "unit":
+                return [integration.load(cls, unit, decoder=decoder) for unit in integration.units]
+            case _:
+                raise ValueError(
+                    f"expected 'app' or 'unit' for `target`. received '{target}' instead"
+                )
 
     def _save_integration_data(
         self,
