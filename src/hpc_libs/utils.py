@@ -14,7 +14,7 @@
 
 """Utilities for streamlining common operations within HPC-related Juju charms."""
 
-__all__ = ["StopCharm", "leader", "plog", "refresh"]
+__all__ = ["StopCharm", "leader", "plog", "refresh", "get_ingress_address"]
 
 import logging
 import pprint
@@ -23,6 +23,8 @@ from functools import wraps
 from typing import Any
 
 import ops
+
+from hpc_libs.errors import IngressAddressNotFoundError
 
 _logger = logging.getLogger(__name__)
 
@@ -117,3 +119,41 @@ def refresh[T: ops.CharmBase](check: Callable[[T], ops.StatusBase] | None = None
         return wrapper
 
     return decorator
+
+
+def get_ingress_address(charm: ops.CharmBase, /, integration_name: str) -> str:
+    """Get the ingress address of an integration endpoint.
+
+    Args:
+        charm: Charm integration endpoint is associated with.
+        integration_name: Name of integration to look up network binding for.
+
+    Raises:
+        IngressAddressNotFoundError:
+            Raised if the integration does not have a network binding.
+        ops.RelationNotFoundError:
+            Raised if the integration does not exist.
+    """
+    _logger.debug(
+        "looking up network binding for integration '%s' in model `%s`",
+        integration_name,
+        charm.model.name,
+    )
+
+    if (binding := charm.model.get_binding(integration_name)) is not None:
+        ingress_address = f"{binding.network.ingress_address}"
+        _logger.debug(
+            "ingress address for integration '%s' determined to be '%s'",
+            integration_name,
+            ingress_address,
+        )
+        return ingress_address
+
+    _logger.error(
+        "networking binding for integration '%s' in model `%s` does not exist",
+        integration_name,
+        charm.model.name,
+    )
+    raise IngressAddressNotFoundError(
+        f"ingress address for integration '{integration_name}' was not found"
+    )
