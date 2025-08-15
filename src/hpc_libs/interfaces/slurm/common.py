@@ -46,12 +46,19 @@ AUTH_KEY_TEMPLATE_LABEL = Template("integration-$id-auth-key-secret")
 JWT_KEY_TEMPLATE_LABEL = Template("integration-$id-jwt-key-secret")
 
 
+class _SlurmJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder for working with `slurmutils` models."""
+
+    def default(self, o: Any) -> Any:
+        if isinstance(o, Model):
+            return o.dict()
+
+        return super().default(o)
+
+
 def encoder(value: Any) -> str:
     """Encode Slurm integration data."""
-    if isinstance(value, Model):
-        value = value.dict()
-
-    return json.dumps(value)
+    return json.dumps(value, cls=_SlurmJSONEncoder)
 
 
 @dataclass(frozen=True)
@@ -68,7 +75,7 @@ class ControllerData:
         jwt_key: Base64-encoded string representing the Slurm JWT key.
         jwt_key_id: ID of the Slurm JWT key Juju secret for this integration instance.
         nhc_args: Arguments to pass to `nhc` - Node Health Check - on compute nodes.
-        slurmconfig: Hard copy of the `slurm.conf` configuration file.
+        slurmconfig: Mapping containing the `slurm.conf` and other included configuration files.
 
     Notes:
         - `sackd` requires:         `auth_key_id`, `controllers`
@@ -83,14 +90,15 @@ class ControllerData:
     jwt_key: str = ""
     jwt_key_id: str = ""
     nhc_args: str = ""
-    slurmconfig: SlurmConfig | None = None
+    slurmconfig: dict[str, SlurmConfig] = field(default_factory=dict)
 
     def __post_init__(self) -> None:  # noqa D105
-        # If `slurmconfig` is determined to be a built-in dictionary object when deserializing
-        # integration data, the `slurmconfig` field will be automatically parsed into a
-        # `SlurmConfig` object.
-        if isinstance(self.slurmconfig, dict):
-            object.__setattr__(self, "slurmconfig", SlurmConfig(self.slurmconfig))
+        # If the value of a key in `slurmconfig` is determined to be a built-in dictionary
+        # object when deserializing integration data, the dictionary value will be automatically
+        # parsed into a `SlurmConfig` object.
+        for k, v in self.slurmconfig.items():
+            if isinstance(v, dict):
+                self.slurmconfig[k] = SlurmConfig(v)
 
 
 def controller_not_ready(charm: ops.CharmBase) -> ConditionEvaluation:
