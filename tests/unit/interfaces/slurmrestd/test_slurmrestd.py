@@ -35,10 +35,13 @@ from hpc_libs.utils import refresh
 
 SLURMRESTD_INTEGRATION_NAME = "slurmrestd"
 EXAMPLE_AUTH_KEY = "xyz123=="
-EXAMPLE_SLURM_CONFIG = SlurmConfig(
-    clustername="charmed-hpc-abc_",
-    slurmctldhost=["127.0.0.1", "127.0.1.1"],
-)
+EXAMPLE_SLURM_CONFIG = {
+    "slurm.conf": SlurmConfig(
+        clustername="charmed-hpc-abc_",
+        slurmctldhost=["127.0.0.1", "127.0.1.1"],
+    ),
+    "slurm.conf.overrides": SlurmConfig(slurmddebug="info"),
+}
 
 
 class MockSlurmrestdProviderCharm(ops.CharmBase):
@@ -60,7 +63,11 @@ class MockSlurmrestdProviderCharm(ops.CharmBase):
         data = self.slurmctld.get_controller_data(integration_id=event.relation.id)
         # Assume `remote_app_data` contains `auth_key` and `slurmconfig`.
         assert data.auth_key == EXAMPLE_AUTH_KEY
-        assert data.slurmconfig.dict() == EXAMPLE_SLURM_CONFIG.dict()
+        assert data.slurmconfig["slurm.conf"].dict() == EXAMPLE_SLURM_CONFIG["slurm.conf"].dict()
+        assert (
+            data.slurmconfig["slurm.conf.overrides"].dict()
+            == EXAMPLE_SLURM_CONFIG["slurm.conf.overrides"].dict()
+        )
 
 
 class MockSlurmrestdRequirerCharm(ops.CharmBase):
@@ -140,7 +147,7 @@ class TestSlurmrestdInterface:
             remote_app_data={
                 "auth_key": '"***"',
                 "auth_key_id": json.dumps(auth_key_secret.id),
-                "slurmconfig": EXAMPLE_SLURM_CONFIG.json(),
+                "slurmconfig": json.dumps({k: v.dict() for k, v in EXAMPLE_SLURM_CONFIG.items()}),
             }
             if ready
             else {"auth_key": '"***"'},
@@ -200,7 +207,9 @@ class TestSlurmrestdInterface:
             assert integration.local_app_data["auth_key_id"] != '""'
 
             assert "slurmconfig" in integration.local_app_data
-            assert integration.local_app_data["slurmconfig"] == EXAMPLE_SLURM_CONFIG.json()
+            assert integration.local_app_data["slurmconfig"] == json.dumps(
+                {k: v.dict() for k, v in EXAMPLE_SLURM_CONFIG.items()}
+            )
         else:
             # Verify that non-leader units have not set anything in `local_app_data`.
             assert integration.local_app_data == {}
