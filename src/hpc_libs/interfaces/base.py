@@ -38,7 +38,7 @@ from hpc_libs.utils import StopCharm
 _logger = logging.getLogger(__name__)
 
 type ConditionEvaluation = tuple[bool, str]
-type Condition = Callable[[ops.CharmBase], ConditionEvaluation]
+type Condition[T: ops.CharmBase] = Callable[[T], ConditionEvaluation]
 
 
 def update_secret(charm: ops.CharmBase, label: str, content: dict[str, str]) -> ops.Secret:
