@@ -32,9 +32,9 @@ from hpc_libs.interfaces import (
     SlurmdbdProvider,
     SlurmdbdReadyEvent,
     SlurmdbdRequirer,
-    controller_not_ready,
-    database_not_ready,
-    wait_when,
+    controller_ready,
+    database_ready,
+    wait_unless,
 )
 from hpc_libs.utils import refresh
 
@@ -71,8 +71,8 @@ class MockSlurmdbdProviderCharm(ops.CharmBase):
             integration_id=event.relation.id,
         )
 
-    @refresh(check=None)
-    @wait_when(controller_not_ready)
+    @refresh(hook=None)
+    @wait_unless(controller_ready)
     def _on_slurmctld_ready(self, event: SlurmctldReadyEvent) -> None:
         data = self.slurmctld.get_controller_data(integration_id=event.relation.id)
         # Assume `remote_app_data` contains `auth_key` and `jwt_key`.
@@ -109,8 +109,8 @@ class MockSlurmdbdRequirerCharm(ops.CharmBase):
             integration_id=event.relation.id,
         )
 
-    @refresh(check=None)
-    @wait_when(database_not_ready)
+    @refresh(hook=None)
+    @wait_unless(database_ready)
     def _on_slurmdbd_ready(self, event: SlurmdbdReadyEvent) -> None:
         data = self.slurmdbd.get_database_data(integration_id=event.relation.id)
         # Assume `remote_app_data` contains `hostname`.

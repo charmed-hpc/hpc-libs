@@ -21,7 +21,7 @@ __all__ = [
     "SlurmdDisconnectedEvent",
     "SlurmdProvider",
     "SlurmdRequirer",
-    "partition_not_ready",
+    "partition_ready",
 ]
 
 from dataclasses import dataclass
@@ -52,15 +52,15 @@ class ComputeData:
             object.__setattr__(self, "partition", Partition(self.partition))
 
 
-def partition_not_ready(charm: ops.CharmBase) -> ConditionEvaluation:
+def partition_ready(charm: ops.CharmBase) -> ConditionEvaluation:
     """Check if compute - `slurmd` - data is available.
 
     Notes:
         - This condition check requires that the charm has a public `slurmd`
-          attribute that has a public `ready` method.
+          attribute that has a public `is_ready` method.
     """
-    not_ready = not charm.slurmd.is_ready()  # type: ignore
-    return not_ready, "Waiting for partition data" if not_ready else ""
+    ready = charm.slurmd.is_ready()  # type: ignore
+    return ConditionEvaluation(ready, "Waiting for partition data" if not ready else "")
 
 
 class SlurmdConnectedEvent(ops.RelationEvent):

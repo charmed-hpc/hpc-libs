@@ -31,9 +31,9 @@ from hpc_libs.interfaces import (
     SlurmdProvider,
     SlurmdReadyEvent,
     SlurmdRequirer,
-    controller_not_ready,
-    partition_not_ready,
-    wait_when,
+    controller_ready,
+    partition_ready,
+    wait_unless,
 )
 from hpc_libs.utils import refresh
 
@@ -78,8 +78,8 @@ class MockSlurmdProviderCharm(ops.CharmBase):
             integration_id=event.relation.id,
         )
 
-    @refresh(check=None)
-    @wait_when(controller_not_ready)
+    @refresh(hook=None)
+    @wait_unless(controller_ready)
     def _on_slurmctld_ready(self, event: SlurmctldReadyEvent) -> None:
         data = self.slurmctld.get_controller_data(integration_id=event.relation.id)
         # Assume `remote_app_data` contains and `auth_key` and `controllers` list.
@@ -105,8 +105,8 @@ class MockSlurmdRequirerCharm(ops.CharmBase):
             self._on_slurmd_disconnected,
         )
 
-    @refresh(check=None)
-    @wait_when(partition_not_ready)
+    @refresh(hook=None)
+    @wait_unless(partition_ready)
     def _on_slurmd_ready(self, event: SlurmdReadyEvent) -> None:
         data = self.slurmd.get_compute_data(integration_id=event.relation.id)
         # Assume `remote_app_data` contains partition configuration data.
