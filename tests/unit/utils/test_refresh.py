@@ -21,7 +21,7 @@ from ops import testing
 from hpc_libs.utils import StopCharm, refresh
 
 refresh_no_check_func = refresh()
-refresh = refresh(check=lambda _: ops.ActiveStatus())
+refresh = refresh(hook=lambda _: ops.ActiveStatus())
 
 
 class MockCharm(ops.CharmBase):
