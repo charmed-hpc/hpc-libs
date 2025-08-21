@@ -28,8 +28,8 @@ from hpc_libs.interfaces import (
     SlurmrestdConnectedEvent,
     SlurmrestdProvider,
     SlurmrestdRequirer,
-    controller_not_ready,
-    wait_when,
+    controller_ready,
+    wait_unless,
 )
 from hpc_libs.utils import refresh
 
@@ -57,8 +57,8 @@ class MockSlurmrestdProviderCharm(ops.CharmBase):
             self._on_slurmctld_ready,
         )
 
-    @refresh(check=None)
-    @wait_when(controller_not_ready)
+    @refresh(hook=None)
+    @wait_unless(controller_ready)
     def _on_slurmctld_ready(self, event: SlurmctldReadyEvent) -> None:
         data = self.slurmctld.get_controller_data(integration_id=event.relation.id)
         # Assume `remote_app_data` contains `auth_key` and `slurmconfig`.

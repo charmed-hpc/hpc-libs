@@ -21,7 +21,7 @@ __all__ = [
     "SlurmctldDisconnectedEvent",
     "SlurmctldProvider",
     "SlurmctldRequirer",
-    "controller_not_ready",
+    "controller_ready",
     "encoder",
 ]
 
@@ -101,15 +101,15 @@ class ControllerData:
                 self.slurmconfig[k] = SlurmConfig(v)
 
 
-def controller_not_ready(charm: ops.CharmBase) -> ConditionEvaluation:
+def controller_ready(charm: ops.CharmBase) -> ConditionEvaluation:
     """Check if controller - `slurmctld` - data is available.
 
     Notes:
         - This condition check requires that the charm has a public `slurmctld`
-          attribute that has a public `ready` method.
+          attribute that has a public `is_ready` method.
     """
-    not_ready = not charm.slurmctld.is_ready()  # type: ignore
-    return not_ready, "Waiting for controller data" if not_ready else ""
+    ready = charm.slurmctld.is_ready()  # type: ignore
+    return ConditionEvaluation(ready, "Waiting for controller data" if not ready else "")
 
 
 class SlurmctldConnectedEvent(ops.RelationEvent):

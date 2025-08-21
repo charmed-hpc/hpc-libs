@@ -20,14 +20,14 @@ __all__ = [
     "ConditionEvaluation",
     "integration_exists",
     "integration_not_exists",
-    "block_when",
-    "wait_when",
+    "block_unless",
+    "wait_unless",
     # From `slurm/common.py`
     "ControllerData",
     "SlurmctldConnectedEvent",
     "SlurmctldDisconnectedEvent",
     "SlurmctldReadyEvent",
-    "controller_not_ready",
+    "controller_ready",
     # From `slurm/oci_runtime.py`
     "OCIRuntimeData",
     "OCIRuntimeDisconnectedEvent",
@@ -45,7 +45,7 @@ __all__ = [
     "SlurmdDisconnectedEvent",
     "SlurmdProvider",
     "SlurmdRequirer",
-    "partition_not_ready",
+    "partition_ready",
     # From `slurm/slurmdbd.py`
     "DatabaseData",
     "SlurmdbdProvider",
@@ -53,7 +53,7 @@ __all__ = [
     "SlurmdbdConnectedEvent",
     "SlurmdbdReadyEvent",
     "SlurmdbdDisconnectedEvent",
-    "database_not_ready",
+    "database_ready",
     # From `slurm/slurmrestd.py`
     "SlurmrestdProvider",
     "SlurmrestdRequirer",
@@ -63,17 +63,17 @@ __all__ = [
 from .base import (
     Condition,
     ConditionEvaluation,
-    block_when,
+    block_unless,
     integration_exists,
     integration_not_exists,
-    wait_when,
+    wait_unless,
 )
 from .slurm.common import (
     ControllerData,
     SlurmctldConnectedEvent,
     SlurmctldDisconnectedEvent,
     SlurmctldReadyEvent,
-    controller_not_ready,
+    controller_ready,
 )
 from .slurm.oci_runtime import (
     OCIRuntimeData,
@@ -94,7 +94,7 @@ from .slurm.slurmd import (
     SlurmdProvider,
     SlurmdReadyEvent,
     SlurmdRequirer,
-    partition_not_ready,
+    partition_ready,
 )
 from .slurm.slurmdbd import (
     DatabaseData,
@@ -103,7 +103,7 @@ from .slurm.slurmdbd import (
     SlurmdbdProvider,
     SlurmdbdReadyEvent,
     SlurmdbdRequirer,
-    database_not_ready,
+    database_ready,
 )
 from .slurm.slurmrestd import (
     SlurmrestdConnectedEvent,

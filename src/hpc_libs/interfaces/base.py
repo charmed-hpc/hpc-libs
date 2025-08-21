@@ -22,23 +22,20 @@ __all__ = [
     "load_secret",
     "integration_exists",
     "integration_not_exists",
-    "block_when",
-    "wait_when",
+    "block_unless",
+    "wait_unless",
 ]
 
 import logging
 from collections.abc import Callable, Iterable
 from functools import partial, wraps
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 import ops
 
 from hpc_libs.utils import StopCharm
 
 _logger = logging.getLogger(__name__)
-
-type ConditionEvaluation = tuple[bool, str]
-type Condition[T: ops.CharmBase] = Callable[[T], ConditionEvaluation]
 
 
 def update_secret(charm: ops.CharmBase, label: str, content: dict[str, str]) -> ops.Secret:
@@ -257,6 +254,14 @@ class Interface(ops.Object):
             integration.save(data, target, encoder=encoder)
 
 
+class ConditionEvaluation(NamedTuple):  # noqa D101
+    ok: bool
+    message: str = ""
+
+
+type Condition[T: ops.CharmBase] = Callable[[T], ConditionEvaluation]
+
+
 def integration_exists(name: str) -> Condition:
     """Check if an integration exists.
 
@@ -265,7 +270,7 @@ def integration_exists(name: str) -> Condition:
     """
 
     def wrapper(charm: ops.CharmBase) -> ConditionEvaluation:
-        return bool(charm.model.relations[name]), ""
+        return ConditionEvaluation(bool(charm.model.relations[name]), "")
 
     return wrapper
 
@@ -279,19 +284,21 @@ def integration_not_exists(name: str) -> Condition:
 
     def wrapper(charm: ops.CharmBase) -> ConditionEvaluation:
         not_exists = not bool(charm.model.relations[name])
-        return not_exists, f"Waiting for integrations: [`{name}`]" if not_exists else ""
+        return ConditionEvaluation(
+            not_exists, f"Waiting for integrations: [`{name}`]" if not_exists else ""
+        )
 
     return wrapper
 
 
-def _status_when(*conditions: Condition, status: type[ops.StatusBase]) -> Callable[..., Any]:
+def _status_unless(*conditions: Condition, status: type[ops.StatusBase]) -> Callable[..., Any]:
     """Evaluate conditions.
 
-    If a condition is `True`, set a new status message.
+    If a condition is `False`, set a new status message.
 
     Args:
         *conditions: Conditions to evaluate.
-        status: Status type to set if a condition is evaluated to be `True`.
+        status: Status type to set if a condition is evaluated to be `False`.
     """
 
     def decorator(func: Callable[..., Any]):
@@ -301,21 +308,21 @@ def _status_when(*conditions: Condition, status: type[ops.StatusBase]) -> Callab
             _logger.debug("handling event `%s` on %s", event, charm.unit.name)
 
             for condition in conditions:
-                result, msg = condition(charm)
-                if result:
+                ok, message = condition(charm)
+                if not ok:
                     _logger.debug(
                         (
-                            "condition '%s' evaluated to be `True`. deferring event `%s` and "
+                            "condition '%s' evaluated to be `False`. deferring event `%s` and "
                             + "updating status of unit %s to `%s` with message '%s'"
                         ),
                         condition.__name__,
                         event,
                         charm.unit.name,
                         status.__name__,
-                        msg,
+                        message,
                     )
                     event.defer()
-                    raise StopCharm(status(msg))
+                    raise StopCharm(status(message))
 
             return func(charm, *args, **kwargs)
 
@@ -324,5 +331,5 @@ def _status_when(*conditions: Condition, status: type[ops.StatusBase]) -> Callab
     return decorator
 
 
-block_when = partial(_status_when, status=ops.BlockedStatus)
-wait_when = partial(_status_when, status=ops.WaitingStatus)
+block_unless = partial(_status_unless, status=ops.BlockedStatus)
+wait_unless = partial(_status_unless, status=ops.WaitingStatus)

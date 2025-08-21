@@ -21,7 +21,7 @@ __all__ = [
     "SlurmdbdDisconnectedEvent",
     "SlurmdbdProvider",
     "SlurmdbdRequirer",
-    "database_not_ready",
+    "database_ready",
 ]
 
 from dataclasses import dataclass
@@ -45,15 +45,15 @@ class DatabaseData:
     hostname: str = ""
 
 
-def database_not_ready(charm: ops.CharmBase) -> ConditionEvaluation:
+def database_ready(charm: ops.CharmBase) -> ConditionEvaluation:
     """Check if database - `slurmdbd` - data is available.
 
     Notes:
         - This condition check requirers that the charm has a public `slurmdbd`
-          attribute that has a public `ready` method.
+          attribute that has a public `is_ready` method.
     """
-    not_ready = not charm.slurmdbd.is_ready()  # type: ignore
-    return not_ready, "Waiting for database data" if not_ready else ""
+    ready = charm.slurmdbd.is_ready()  # type: ignore
+    return ConditionEvaluation(ready, "Waiting for database data" if not ready else "")
 
 
 class SlurmdbdConnectedEvent(ops.RelationEvent):
