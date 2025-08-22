@@ -78,6 +78,7 @@ class Interface(ops.Object):
         charm: Charm instance the integration belongs to.
         integration_name: Name of the integration.
         required_app_data: Required application data for the integration to be considered ready.
+        app_data_validator: Function to validate application data if required keys are present.
 
     Notes:
         - This interface is not intended to be used directly. Child interfaces should inherit
@@ -94,6 +95,7 @@ class Interface(ops.Object):
         integration_name: str,
         *,
         required_app_data: Iterable[str] | None = None,
+        app_data_validator: Callable[[ops.RelationDataContent], bool] | None = None,
     ) -> None:
         super().__init__(charm, integration_name)
         self.charm = charm
@@ -101,6 +103,7 @@ class Interface(ops.Object):
         self.unit = charm.unit
         self._integration_name = integration_name
         self._required_app_data = required_app_data if required_app_data else set()
+        self._app_data_validator = app_data_validator if app_data_validator else lambda _: True
 
     @property
     def integrations(self) -> list[ops.Relation]:
@@ -188,7 +191,13 @@ class Interface(ops.Object):
         if not integration.app:
             return False
 
-        return all(k in integration.data[integration.app] for k in self._required_app_data)
+        app_data = integration.data[integration.app]
+        if not all(k in app_data for k in self._required_app_data):
+            return False
+        if not self._app_data_validator(app_data):
+            return False
+
+        return True
 
     def _load_integration_data[T](
         self,
