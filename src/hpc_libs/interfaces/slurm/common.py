@@ -26,7 +26,7 @@ __all__ = [
 ]
 
 import json
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from string import Template
 from typing import Any
@@ -153,8 +153,14 @@ class SlurmctldProvider(Interface):
         integration_name: str,
         *,
         required_app_data: Iterable[str] | None = None,
+        app_data_validator: Callable[[ops.RelationDataContent], bool] | None = None,
     ) -> None:
-        super().__init__(charm, integration_name, required_app_data=required_app_data)
+        super().__init__(
+            charm,
+            integration_name,
+            required_app_data=required_app_data,
+            app_data_validator=app_data_validator,
+        )
 
         self.framework.observe(
             self.charm.on[self._integration_name].relation_broken,
@@ -235,8 +241,14 @@ class SlurmctldRequirer(Interface):
         integration_name: str,
         *,
         required_app_data: Iterable[str] | None = None,
+        app_data_validator: Callable[[ops.RelationDataContent], bool] | None = None,
     ) -> None:
-        super().__init__(charm, integration_name, required_app_data=required_app_data)
+        super().__init__(
+            charm,
+            integration_name,
+            required_app_data=required_app_data,
+            app_data_validator=app_data_validator,
+        )
 
         self.framework.observe(
             self.charm.on[self._integration_name].relation_created,

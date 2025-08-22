@@ -38,6 +38,16 @@ from hpc_libs.interfaces.slurm.common import (
 from hpc_libs.utils import leader
 
 
+def _slurmd_app_data_validator(data: ops.RelationDataContent) -> bool:
+    """Validate data sent by `slurmctld` stored in the `slurmd` integration."""
+    return all(
+        (
+            data["auth_key_id"] != '""',
+            data["controllers"] != "[]",
+        )
+    )
+
+
 @dataclass(frozen=True)
 class ComputeData:
     """Data provided by the Slurm compute service, `slurmd`."""
@@ -102,7 +112,10 @@ class SlurmdProvider(SlurmctldRequirer):
 
     def __init__(self, charm: ops.CharmBase, /, integration_name: str) -> None:
         super().__init__(
-            charm, integration_name, required_app_data={"auth_key_id", "controllers", "nhc_args"}
+            charm,
+            integration_name,
+            required_app_data={"auth_key_id", "controllers", "nhc_args"},
+            app_data_validator=_slurmd_app_data_validator,
         )
 
     @leader
