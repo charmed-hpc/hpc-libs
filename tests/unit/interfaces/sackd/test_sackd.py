@@ -142,7 +142,11 @@ class TestSackdInterface:
                 "controllers": json.dumps(EXAMPLE_CONTROLLERS),
             }
             if ready
-            else {"controllers": json.dumps(EXAMPLE_CONTROLLERS)},
+            else {
+                "auth_key": '"***"',
+                "auth_key_id": json.dumps(""),
+                "controllers": json.dumps([]),
+            },
         )
 
         state = provider_ctx.run(

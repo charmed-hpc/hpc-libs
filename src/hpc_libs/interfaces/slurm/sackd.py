@@ -21,6 +21,16 @@ import ops
 from hpc_libs.interfaces.slurm.common import SlurmctldProvider, SlurmctldRequirer
 from hpc_libs.utils import leader
 
+_REQUIRED_APP_DATA = {
+    "auth_key_id": lambda value: value != '""',
+    "controllers": lambda value: value != "[]",
+}
+
+
+def _sackd_app_data_validator(data: ops.RelationDataContent) -> bool:
+    """Validate data sent by `slurmctld` stored in the `sackd` integration."""
+    return all(validate(data[k]) for k, validate in _REQUIRED_APP_DATA.items())
+
 
 class SackdConnectedEvent(ops.RelationEvent):
     """Event emitted when a new `sackd` application is connected to `slurmctld`."""
@@ -40,7 +50,12 @@ class SackdProvider(SlurmctldRequirer):
     """
 
     def __init__(self, charm: ops.CharmBase, /, integration_name: str) -> None:
-        super().__init__(charm, integration_name, required_app_data={"auth_key_id", "controllers"})
+        super().__init__(
+            charm,
+            integration_name,
+            required_app_data=set(_REQUIRED_APP_DATA),
+            app_data_validator=_sackd_app_data_validator,
+        )
 
 
 class SackdRequirer(SlurmctldProvider):
