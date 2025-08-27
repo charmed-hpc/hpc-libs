@@ -52,7 +52,7 @@ def update_secret(charm: ops.CharmBase, label: str, content: dict[str, str]) -> 
     try:
         secret = charm.model.get_secret(label=label)
         secret.set_content(content=content)
-    except ops.SecretNotFoundError:
+    except (ops.ModelError, ops.SecretNotFoundError):
         secret = charm.app.add_secret(label=label, content=content)
 
     return secret
@@ -67,7 +67,7 @@ def load_secret(charm: ops.CharmBase, label: str) -> ops.Secret | None:
     """
     try:
         return charm.model.get_secret(label=label)
-    except ops.SecretNotFoundError:
+    except (ops.ModelError, ops.SecretNotFoundError):
         return None
 
 

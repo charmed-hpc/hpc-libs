@@ -18,9 +18,11 @@ __all__ = [
     # From `base.py`
     "Condition",
     "ConditionEvaluation",
+    "block_unless",
     "integration_exists",
     "integration_not_exists",
-    "block_unless",
+    "load_secret",
+    "update_secret",
     "wait_unless",
     # From `slurm/common.py`
     "ControllerData",
@@ -66,6 +68,8 @@ from .base import (
     block_unless,
     integration_exists,
     integration_not_exists,
+    load_secret,
+    update_secret,
     wait_unless,
 )
 from .slurm.common import (
