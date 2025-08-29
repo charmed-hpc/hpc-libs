@@ -96,6 +96,9 @@ class OCIRuntimeProvider(SlurmctldRequirer):
 
     @leader
     def _on_relation_broken(self, event: ops.RelationBrokenEvent) -> None:
+        if self.stored_state.unit_departing:
+            return
+
         super()._on_relation_broken(event)
 
     @leader
@@ -149,6 +152,9 @@ class OCIRuntimeRequirer(SlurmctldProvider):
 
     @leader
     def _on_relation_broken(self, event: OCIRuntimeDisconnectedEvent) -> None:
+        if self.stored_state.unit_departing:
+            return
+
         self.on.oci_runtime_disconnected.emit(event.relation)
 
     def get_oci_runtime_data(self, integration_id: int | None = None) -> OCIRuntimeData:

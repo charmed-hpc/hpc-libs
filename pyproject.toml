@@ -18,7 +18,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hpc-libs"
-version = "0.1.0"
+version = "0.1.1"
 requires-python = ">=3.10"
 description = "Collection of utilities to manage HPC related services."
 authors = [

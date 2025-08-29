@@ -88,6 +88,25 @@ class Interface(ops.Object):
           a requirer/provider to successfully process a `RelationChangedEvent`.
     """
 
+    # A temporary fix for:
+    # https://bugs.launchpad.net/juju/+bug/1979811
+    #
+    # `relation-broken` events do not have enough information to determine whether they have been
+    # fired because the current unit is being removed, or because the integration itself is being
+    # removed. In the case where only the current unit is being removed, relation data should not be
+    # cleared nor secrets revoked.
+    #
+    # As a workaround, a StoredState flag is set in the `relation-departed` hook if the current unit
+    # is being removed. The flag is then checked in the `relation-broken` event handler to determine
+    # whether data should be cleared or not.
+    #
+    # StoredState is used rather than the unit databag to prevent extraneous `relation-changed`
+    # events from firing as the unit is being removed.
+    #
+    # Inspired by:
+    # https://github.com/canonical/postgresql-operator/blob/e13b871/src/relations/db.py#L193
+    stored_state = ops.StoredState()
+
     def __init__(
         self,
         charm: ops.CharmBase,
@@ -104,6 +123,17 @@ class Interface(ops.Object):
         self._integration_name = integration_name
         self._required_app_data = required_app_data if required_app_data else set()
         self._app_data_validator = app_data_validator if app_data_validator else lambda _: True
+
+        self.stored_state.set_default(unit_departing=False)
+        self.framework.observe(
+            self.charm.on[self._integration_name].relation_departed,
+            self._on_relation_departed,
+        )
+
+    def _on_relation_departed(self, event: ops.RelationDepartedEvent) -> None:
+        """Handle when a unit is departing from the relation."""
+        if event.departing_unit == self.unit:
+            self.stored_state.unit_departing = True
 
     @property
     def integrations(self) -> list[ops.Relation]:
