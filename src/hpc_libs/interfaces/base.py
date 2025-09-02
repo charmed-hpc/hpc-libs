@@ -88,8 +88,7 @@ class Interface(ops.Object):
           a requirer/provider to successfully process a `RelationChangedEvent`.
     """
 
-    # A workaround for:
-    # https://bugs.launchpad.net/juju/+bug/1979811
+    # A workaround for: https://bugs.launchpad.net/juju/+bug/1979811
     #
     # `relation-broken` events do not have enough information to determine whether they have been
     # fired because the current unit is being removed, or because the integration itself is being
