@@ -170,7 +170,7 @@ class SlurmctldProvider(Interface):
     @leader
     def _on_relation_broken(self, event: ops.RelationBrokenEvent) -> None:
         """Revoke the departing application's access to Slurm secrets."""
-        if self.stored_state.unit_departing:
+        if self._stored.unit_departing:
             return
 
         if auth_secret := load_secret(
@@ -279,7 +279,7 @@ class SlurmctldRequirer(Interface):
 
     def _on_relation_broken(self, event: ops.RelationBrokenEvent) -> None:
         """Handle when `slurmctld` is disconnected from an application."""
-        if self.stored_state.unit_departing:
+        if self._stored.unit_departing:
             return
 
         self.on.slurmctld_disconnected.emit(event.relation)

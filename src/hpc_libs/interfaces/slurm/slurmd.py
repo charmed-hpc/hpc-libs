@@ -179,7 +179,7 @@ class SlurmdRequirer(SlurmctldProvider):
     @leader
     def _on_relation_broken(self, event: ops.RelationBrokenEvent) -> None:
         """Handle when a `slurmd` application is disconnected from `slurmctld`."""
-        if self.stored_state.unit_departing:
+        if self._stored.unit_departing:
             return
 
         super()._on_relation_broken(event)
