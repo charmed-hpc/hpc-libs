@@ -88,7 +88,7 @@ class Interface(ops.Object):
           a requirer/provider to successfully process a `RelationChangedEvent`.
     """
 
-    # A temporary fix for:
+    # A workaround for:
     # https://bugs.launchpad.net/juju/+bug/1979811
     #
     # `relation-broken` events do not have enough information to determine whether they have been
@@ -105,7 +105,7 @@ class Interface(ops.Object):
     #
     # Inspired by:
     # https://github.com/canonical/postgresql-operator/blob/e13b871/src/relations/db.py#L193
-    stored_state = ops.StoredState()
+    _stored = ops.StoredState()
 
     def __init__(
         self,
@@ -124,7 +124,7 @@ class Interface(ops.Object):
         self._required_app_data = required_app_data if required_app_data else set()
         self._app_data_validator = app_data_validator if app_data_validator else lambda _: True
 
-        self.stored_state.set_default(unit_departing=False)
+        self._stored.set_default(unit_departing=False)
         self.framework.observe(
             self.charm.on[self._integration_name].relation_departed,
             self._on_relation_departed,
@@ -133,7 +133,7 @@ class Interface(ops.Object):
     def _on_relation_departed(self, event: ops.RelationDepartedEvent) -> None:
         """Handle when a unit is departing from the relation."""
         if event.departing_unit == self.unit:
-            self.stored_state.unit_departing = True
+            self._stored.unit_departing = True
 
     @property
     def integrations(self) -> list[ops.Relation]:
