@@ -67,5 +67,9 @@ def is_container() -> bool:
             )
         )
 
-    result = subprocess.run(["systemd-detect-virt", "--container"])
+    result = subprocess.run(
+        ["systemd-detect-virt", "--container"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     return result.returncode == 0
