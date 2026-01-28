@@ -71,6 +71,12 @@ dev = [
     "ruff",
     "codespell",
     "pyright",
+
+    # TiCS scan dependencies
+    "flake8",
+    "pylint",
+    "pytest",
+    "pyyaml",
 ]
 
 [project.urls]

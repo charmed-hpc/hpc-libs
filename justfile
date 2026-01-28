@@ -54,7 +54,7 @@ lint fix="": lock
 
     if [ '{{fix}}' = "--fix" ]; then fix="true"; else fix=""; fi
 
-    {{uv_run}} codespell ${fix:+-w}
+    {{uv_run}} codespell --skip uv.lock ${fix:+-w}
     {{uv_run}} ruff check ${fix:+--fix}
 
 # Run static type checker on code
