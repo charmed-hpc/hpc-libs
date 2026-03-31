@@ -12,4 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Integration interfaces for the Slurm workload manager charms."""
+"""Core operational utilities."""
+
+__all__ = [
+    # From `call.py`
+    "call",
+    # From `service.py`
+    "ServiceManager",
+]
+
+from .call import call
+from .service import ServiceManager

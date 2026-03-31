@@ -12,26 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Machine libraries for HPC-related Juju charms."""
+"""Libraries for interfacing with machine resources."""
 
 __all__ = [
-    # From vendored `apt.py`
-    "apt",
-    # From `core` module
-    "ServiceManager",
-    "call",
-    # From `env.py`
-    "EnvManager",
     # From `snap.py`
     "SnapServiceManager",
     "snap",
     # From `systemd.py`
     "SystemctlServiceManager",
     "systemctl",
+    "is_container",
 ]
 
-import hpc_libs.machine.apt as apt
-from hpc_libs.machine.core import ServiceManager, call
-from hpc_libs.machine.env import EnvManager
-from hpc_libs.machine.snap import SnapServiceManager, snap
-from hpc_libs.machine.systemd import SystemctlServiceManager, systemctl
+from .snap import SnapServiceManager, snap
+from .systemd import SystemctlServiceManager, is_container, systemctl

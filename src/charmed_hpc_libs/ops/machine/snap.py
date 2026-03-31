@@ -1,4 +1,4 @@
-# Copyright 2025 Canonical Ltd.
+# Copyright 2025-2026 Canonical Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Classes and functions for managing operations involving `snap`/`snapd`."""
+"""Control `snap`/`snapd` in HPC machine charms."""
 
 __all__ = ["SnapServiceManager", "snap"]
 
@@ -21,8 +21,8 @@ from typing import Any
 
 import yaml
 
-from ..errors import SnapError
-from .core import ServiceManager, call
+from ...errors import SnapError
+from ..core import ServiceManager, call
 
 
 def snap(*args: str, **kwargs: Any) -> tuple[str, int]:  # noqa D417

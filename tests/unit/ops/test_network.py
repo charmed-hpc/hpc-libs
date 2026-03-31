@@ -1,4 +1,4 @@
-# Copyright 2025 Canonical Ltd.
+# Copyright 2025-2026 Canonical Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for the `get_ingress_address` utility."""
+"""Unit tests for network utilities."""
 
 from unittest.mock import Mock
 
@@ -20,8 +20,7 @@ import ops
 import pytest
 from ops import testing
 
-from hpc_libs.errors import IngressAddressNotFoundError
-from hpc_libs.utils import get_ingress_address
+from charmed_hpc_libs import IngressAddressNotFoundError, get_ingress_address
 
 TEST_INTEGRATION_NAME = "test"
 INTEGRATION_ADDRESS = None  # Global variable to check if the correct ingress address was pulled.

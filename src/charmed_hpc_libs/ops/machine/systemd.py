@@ -1,4 +1,4 @@
-# Copyright 2025 Canonical Ltd.
+# Copyright 2025-2026 Canonical Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,15 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Classes and functions for managing operations involving `systemd`/`systemctl`."""
+"""Control `systemd`/`systemctl` in HPC machine charms."""
 
-__all__ = ["SystemctlServiceManager", "systemctl"]
+__all__ = ["SystemctlServiceManager", "systemctl", "is_container"]
 
+import shutil
 from subprocess import CalledProcessError
 from typing import Any
 
-from ..errors import SystemdError
-from .core import ServiceManager, call
+from ...errors import SystemdError, UnknownVirtualizationStateError
+from ..core import ServiceManager, call
+
+
+def is_container() -> bool:
+    """Use `systemd` to detect if the machine is a container instance.
+
+    Raises:
+        DetectVirtNotFoundError: Raised if `systemd-detect-virt` is not found on machine.
+    """
+    if shutil.which("systemd-detect-virt") is None:
+        raise UnknownVirtualizationStateError(
+            (
+                "executable `systemd-detect-virt` not found. "
+                + "cannot determine if machine is a container instance"
+            )
+        )
+
+    result = call("systemd-detect-virt", "--container")
+    return result.returncode == 0
 
 
 def systemctl(*args: str, **kwargs: Any) -> tuple[str, int]:  # noqa D417

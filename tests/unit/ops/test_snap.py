@@ -1,4 +1,4 @@
-# Copyright 2025 Canonical Ltd.
+# Copyright 2025-2026 Canonical Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,8 +20,7 @@ from unittest.mock import Mock
 import pytest
 from pytest_mock import MockerFixture
 
-from hpc_libs.errors import SnapError
-from hpc_libs.machine import SnapServiceManager, snap
+from charmed_hpc_libs import SnapError, SnapServiceManager, snap
 
 # This input is modified. If the service name is the same as the snap name, then the
 # service will be started as `snap start slurm` rather than `snap start slurm.slurm`.
@@ -117,7 +116,7 @@ class TestSnapServiceManager:
     @pytest.fixture
     def mock_snap(self, mocker: MockerFixture) -> Mock:
         """Create a mocked `snap` function."""
-        return mocker.patch("hpc_libs.machine.snap.snap")
+        return mocker.patch("charmed_hpc_libs.ops.machine.snap.snap")
 
     def test_start(self, service_manager, mock_snap, service_name_is_snap_name) -> None:
         """Test the `start` method."""

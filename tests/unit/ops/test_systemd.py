@@ -1,4 +1,4 @@
-# Copyright 2025 Canonical Ltd.
+# Copyright 2025-2026 Canonical Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,8 +20,13 @@ from unittest.mock import Mock
 import pytest
 from pytest_mock import MockerFixture
 
-from hpc_libs.errors import SystemdError
-from hpc_libs.machine import SystemctlServiceManager, systemctl
+from charmed_hpc_libs import (
+    SystemctlServiceManager,
+    SystemdError,
+    UnknownVirtualizationStateError,
+    is_container,
+    systemctl,
+)
 
 
 def test_systemctl(mocker: MockerFixture) -> None:
@@ -50,6 +55,39 @@ def test_systemctl(mocker: MockerFixture) -> None:
     )
 
 
+class TestIsContainer:
+    """Test the `is_container` function."""
+
+    @pytest.mark.parametrize(
+        "container",
+        (
+            pytest.param(True, id="is container"),
+            pytest.param(False, id="is not container"),
+        ),
+    )
+    def test_is_container(self, mocker: MockerFixture, container) -> None:
+        """Test the `is_container` function."""
+        mocker.patch.object(
+            subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(args=[], returncode=0 if container else 1),
+        )
+        assert is_container() == container
+
+    def test_is_container_no_detect_virt(self, mocker: MockerFixture) -> None:
+        """Test the `is_container` function when `systemd-detect-virt` is not available."""
+        mocker.patch("shutil.which", return_value=None)
+
+        with pytest.raises(UnknownVirtualizationStateError) as exec_info:
+            is_container()
+
+        assert exec_info.type == UnknownVirtualizationStateError
+        assert exec_info.value.message == (
+            "executable `systemd-detect-virt` not found. "
+            + "cannot determine if machine is a container instance"
+        )
+
+
 class TestSystemctlServiceManager:
     """Test the `SystemctlServiceManager` class."""
 
@@ -61,7 +99,7 @@ class TestSystemctlServiceManager:
     @pytest.fixture
     def mock_systemctl(self, mocker: MockerFixture) -> Mock:
         """Create a mocked `systemctl` function."""
-        return mocker.patch("hpc_libs.machine.systemd.systemctl")
+        return mocker.patch("charmed_hpc_libs.ops.machine.systemd.systemctl")
 
     def test_start(self, service_manager, mock_systemctl) -> None:
         """Test the `start` method."""

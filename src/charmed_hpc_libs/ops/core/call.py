@@ -1,4 +1,4 @@
-# Copyright 2025 Canonical Ltd.
+# Copyright 2025-2026 Canonical Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Call `subprocess` with logging enabled."""
+"""Call a command with logging enabled."""
 
-import logging
 import subprocess
 
-_logger = logging.getLogger(__name__)
+from ..logging import setup_logging
+
+_logger = setup_logging(__name__)
 
 
 def call(
