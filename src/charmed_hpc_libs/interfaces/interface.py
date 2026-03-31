@@ -1,4 +1,4 @@
-# Copyright 2025 Canonical Ltd.
+# Copyright 2026 Canonical Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,67 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Base classes, methods, and utilities for building HPC-related integration interfaces."""
+"""Base interface for HPC integration interface implementations."""
 
-__all__ = [
-    "ConditionEvaluation",
-    "Condition",
-    "Interface",
-    "update_secret",
-    "load_secret",
-    "integration_exists",
-    "integration_not_exists",
-    "block_unless",
-    "wait_unless",
-]
+__all__ = ["Interface"]
 
-import logging
 from collections.abc import Callable, Iterable
-from functools import partial, wraps
-from typing import Any, Literal, NamedTuple
+from typing import Any, Literal
 
 import ops
 
-from hpc_libs.utils import StopCharm
-
-_logger = logging.getLogger(__name__)
-
-
-def update_secret(charm: ops.CharmBase, label: str, content: dict[str, str]) -> ops.Secret:
-    """Update a secret.
-
-    Args:
-        charm: Charm to associate secret with.
-        label: Secret label.
-        content: Payload to set as secret content.
-
-    Notes:
-        - The secret will be created if it does not exist.
-    """
-    try:
-        secret = charm.model.get_secret(label=label)
-        secret.set_content(content=content)
-    except (ops.ModelError, ops.SecretNotFoundError):
-        secret = charm.app.add_secret(label=label, content=content)
-
-    return secret
-
-
-def load_secret(charm: ops.CharmBase, label: str) -> ops.Secret | None:
-    """Load a secret.
-
-    Args:
-        charm: Charm to load secret from.
-        label: Secret label.
-    """
-    try:
-        return charm.model.get_secret(label=label)
-    except (ops.ModelError, ops.SecretNotFoundError):
-        return None
-
 
 class Interface(ops.Object):
-    """Base interface for HPC-related integrations.
+    """Base interface for HPC integration interfaces.
 
     Args:
         charm: Charm instance the integration belongs to.
@@ -206,15 +157,6 @@ class Interface(ops.Object):
         """
         return True if self.model.relations.get(self._integration_name) else False
 
-    @staticmethod
-    def _is_integration_active(integration: ops.Relation) -> bool:
-        """Check if an integration is active by accessing contained data."""
-        try:
-            _ = repr(integration.data)
-            return True
-        except (RuntimeError, ops.ModelError):
-            return False
-
     def _is_integration_ready(self, integration: ops.Relation) -> bool:
         """Check if an integration is ready."""
         if not integration.app:
@@ -291,83 +233,11 @@ class Interface(ops.Object):
         for integration in integrations:
             integration.save(data, target, encoder=encoder)
 
-
-class ConditionEvaluation(NamedTuple):  # noqa D101
-    ok: bool
-    message: str = ""
-
-
-type Condition[T: ops.CharmBase] = Callable[[T], ConditionEvaluation]
-
-
-def integration_exists(name: str) -> Condition:
-    """Check if an integration exists.
-
-    Args:
-        name: Name of integration to check existence of.
-    """
-
-    def wrapper(charm: ops.CharmBase) -> ConditionEvaluation:
-        return ConditionEvaluation(bool(charm.model.relations[name]), "")
-
-    return wrapper
-
-
-def integration_not_exists(name: str) -> Condition:
-    """Check if an integration does not exist.
-
-    Args:
-        name: Name of integration to check existence of.
-    """
-
-    def wrapper(charm: ops.CharmBase) -> ConditionEvaluation:
-        not_exists = not bool(charm.model.relations[name])
-        return ConditionEvaluation(
-            not_exists, f"Waiting for integrations: [`{name}`]" if not_exists else ""
-        )
-
-    return wrapper
-
-
-def _status_unless(*conditions: Condition, status: type[ops.StatusBase]) -> Callable[..., Any]:
-    """Evaluate conditions.
-
-    If a condition is `False`, set a new status message.
-
-    Args:
-        *conditions: Conditions to evaluate.
-        status: Status type to set if a condition is evaluated to be `False`.
-    """
-
-    def decorator(func: Callable[..., Any]):
-        @wraps(func)
-        def wrapper(charm: ops.CharmBase, *args: ops.EventBase, **kwargs: Any) -> Any:
-            event, *_ = args
-            _logger.debug("handling event `%s` on %s", event, charm.unit.name)
-
-            for condition in conditions:
-                ok, message = condition(charm)
-                if not ok:
-                    _logger.debug(
-                        (
-                            "condition '%s' evaluated to be `False`. deferring event `%s` and "
-                            + "updating status of unit %s to `%s` with message '%s'"
-                        ),
-                        condition.__name__,
-                        event,
-                        charm.unit.name,
-                        status.__name__,
-                        message,
-                    )
-                    event.defer()
-                    raise StopCharm(status(message))
-
-            return func(charm, *args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-block_unless = partial(_status_unless, status=ops.BlockedStatus)
-wait_unless = partial(_status_unless, status=ops.WaitingStatus)
+    @staticmethod
+    def _is_integration_active(integration: ops.Relation) -> bool:
+        """Check if an integration is active by accessing contained data."""
+        try:
+            _ = repr(integration.data)
+            return True
+        except (RuntimeError, ops.ModelError):
+            return False

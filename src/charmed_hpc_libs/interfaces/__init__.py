@@ -1,4 +1,4 @@
-# Copyright 2025 Canonical Ltd.
+# Copyright 2025-2026 Canonical Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,4 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A collection of libraries for authoring HPC-related Juju charms."""
+"""Libraries for building HPC integration interfaces."""
+
+__all__ = [
+    # From `interface.py`
+    "Interface",
+]
+
+from .interface import Interface
