@@ -1,4 +1,4 @@
-# Copyright 2025 Canonical Ltd.
+# Copyright 2025-2026 Canonical Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -66,15 +66,6 @@ unit *args: lock
     {{uv_run}} coverage run -m pytest --tb native -v -s {{args}} {{tests_dir / "unit"}}
     {{uv_run}} coverage report
     {{uv_run}} coverage xml -o {{project_dir / "cover" / "coverage.xml"}}
-
-# Run integration tests
-integration: lock
-    #!/usr/bin/env bash
-    if [ ! -z {{gambol}} ]; then
-        {{gambol}} -v run {{tests_dir / "integration" / "test_hpc_libs.yaml"}}
-    else
-        echo "Could not find tool \`gambol\`"
-    fi
 
 # Show available recipes
 help:
