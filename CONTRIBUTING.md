@@ -1,11 +1,11 @@
-# Contributing to `hpc-libs`
+# Contributing to `charmed-hpc-libs`
 
-Do you want to contribute to the `hpc-libs` repository? You've come to the right place then!
+Do you want to contribute to the `charmed-hpc-libs` repository? You've come to the right place then!
 __Here is how you can get involved.__
 
 Before you start working on your contribution, please familiarize yourself with the [Charmed
 HPC project's contributing guide]. After you've gone through the main contributing guide,
-you can use this guide for specific information on contributing to the `hpc-libs` repository.
+you can use this guide for specific information on contributing to the `charmed-hpc-libs` repository.
 
 Have any questions? Feel free to ask them in the [Ubuntu High-Performance Computing Matrix chat]
 or on [GitHub Discussions].
@@ -14,10 +14,10 @@ or on [GitHub Discussions].
 [Ubuntu High-Performance Computing Matrix chat]: https://matrix.to/#/#hpc:ubuntu.com
 [GitHub Discussions]: https://github.com/orgs/charmed-hpc/discussions/categories/support
 
-## Hacking on `hpc-libs`
+## Hacking on `charmed-hpc-libs`
 
 This repository uses [just](https://github.com/casey/just) and [uv](https://github.com/astral-sh/uv) for development
-which provide some useful commands that will help you while hacking on `hpc-libs`:
+which provide some useful commands that will help you while hacking on `charmed-hpc-libs`:
 
 ```shell
 # Create a developer environment
@@ -29,7 +29,7 @@ just upgrade
 
 Run `just help` to view the full list of available recipes.
 
-### Before opening a pull request on the `hpc-libs` repository
+### Before opening a pull request on the `charmed-hpc-libs` repository
 
 Ensure that your changes pass all the existing tests, and that you have added tests
 for any new features you're introducing in this changeset.
@@ -56,10 +56,10 @@ just integration
 
 ## License information
 
-By contributing to `hpc-libs`, you agree to license your contribution under
+By contributing to `charmed-hpc-libs`, you agree to license your contribution under
 the Apache License 2.0 license.
 
-### Adding a new file to `hpc-libs`
+### Adding a new file to `charmed-hpc-libs`
 
 If you add a new source code file to the repository, add the following license header
 as a comment to the top of the file with the copyright owner set to the organization
@@ -81,7 +81,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### Updating an existing file in `hpc-libs`
+### Updating an existing file in `charmed-hpc-libs`
 
 If you are making changes to an existing file, and the copyright year is not the current year,
 update the year range to include the current year. For example, if a file's copyright year is:
