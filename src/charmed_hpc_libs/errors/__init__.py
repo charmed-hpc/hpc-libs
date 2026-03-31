@@ -1,4 +1,4 @@
-# Copyright 2025 Canonical Ltd.
+# Copyright 2026 Canonical Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Common errors raised by functions and methods in the `hpc_libs` package."""
+"""Errors raised by functions and methods in HPC charms."""
+
+__all__ = [
+    "Error",
+    "IngressAddressNotFoundError",
+    "SnapError",
+    "SystemdError",
+    "UnknownVirtualizationStateError",
+]
 
 
 class Error(Exception):
@@ -24,6 +32,10 @@ class Error(Exception):
         return self.args[0]
 
 
+class IngressAddressNotFoundError(Error):
+    """Error raised if a charm is unable to access its ingress address."""
+
+
 class SnapError(Error):
     """Error raised if a `snap`-related operation fails."""
 
@@ -32,5 +44,5 @@ class SystemdError(Error):
     """Error raised if a `systemd`-related operation fails."""
 
 
-class IngressAddressNotFoundError(Error):
-    """Error raised if a charm is unable to access its ingress address."""
+class UnknownVirtualizationStateError(Error):
+    """Raise error if unknown virtualization state is returned."""
