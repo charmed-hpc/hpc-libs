@@ -29,15 +29,14 @@ __all__ = [
     "wait_unless",
 ]
 
+import logging
 from collections.abc import Callable
 from functools import partial, wraps
 from typing import Any, NamedTuple
 
 import ops
 
-from .logging import setup_logging
-
-_logger = setup_logging(__name__)
+_logger = logging.getLogger(__name__)
 
 
 class ConditionEvaluation(NamedTuple):  # noqa D101

@@ -14,11 +14,10 @@
 
 """Call a command with logging enabled."""
 
+import logging
 import subprocess
 
-from ..logging import setup_logging
-
-_logger = setup_logging(__name__)
+_logger = logging.getLogger(__name__)
 
 
 def call(

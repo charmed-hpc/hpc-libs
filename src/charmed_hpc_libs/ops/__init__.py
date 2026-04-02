@@ -30,8 +30,6 @@ __all__ = [
     "ServiceManager",
     # From `env.py`
     "EnvManager",
-    # From `logging.py`
-    "setup_logging",
     # From `machine` module
     "SnapServiceManager",
     "SystemctlServiceManager",
@@ -58,7 +56,6 @@ from .conditions import (
 )
 from .core import ServiceManager, call
 from .env import EnvManager
-from .logging import setup_logging
 from .machine import SnapServiceManager, SystemctlServiceManager, is_container, snap, systemctl
 from .network import get_ingress_address
 from .secrets import load_secret, update_secret

@@ -16,12 +16,13 @@
 
 __all__ = ["get_ingress_address"]
 
+import logging
+
 import ops
 
 from ..errors import IngressAddressNotFoundError
-from .logging import setup_logging
 
-_logger = setup_logging(__name__)
+_logger = logging.getLogger(__name__)
 
 
 def get_ingress_address(charm: ops.CharmBase, /, integration_name: str) -> str:
