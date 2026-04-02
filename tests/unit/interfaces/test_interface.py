@@ -22,7 +22,7 @@ import ops
 import pytest
 from ops import Framework, testing
 
-from charmed_hpc_libs import Interface
+from charmed_hpc_libs.interfaces import Interface
 
 INTEGRATION_NAME = "test-integration"
 INTERFACE_NAME = "test-interface"

@@ -18,7 +18,7 @@ import ops
 import pytest
 from ops import testing
 
-from charmed_hpc_libs import load_secret, update_secret
+from charmed_hpc_libs.ops import load_secret, update_secret
 
 
 class MockCharm(ops.CharmBase):

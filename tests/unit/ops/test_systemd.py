@@ -20,13 +20,8 @@ from unittest.mock import Mock
 import pytest
 from pytest_mock import MockerFixture
 
-from charmed_hpc_libs import (
-    SystemctlServiceManager,
-    SystemdError,
-    UnknownVirtualizationStateError,
-    is_container,
-    systemctl,
-)
+from charmed_hpc_libs.errors import SystemdError, UnknownVirtualizationStateError
+from charmed_hpc_libs.ops import SystemctlServiceManager, is_container, systemctl
 
 
 def test_systemctl(mocker: MockerFixture) -> None:

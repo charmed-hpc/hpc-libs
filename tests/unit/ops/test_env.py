@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 from pyfakefs.fake_filesystem import FakeFilesystem
 
-from charmed_hpc_libs import EnvManager
+from charmed_hpc_libs.ops import EnvManager
 
 ENV_FILE = "/etc/default/slurmd"
 

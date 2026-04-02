@@ -20,7 +20,8 @@ from unittest.mock import Mock
 import pytest
 from pytest_mock import MockerFixture
 
-from charmed_hpc_libs import SnapError, SnapServiceManager, snap
+from charmed_hpc_libs.errors import SnapError
+from charmed_hpc_libs.ops import SnapServiceManager, snap
 
 # This input is modified. If the service name is the same as the snap name, then the
 # service will be started as `snap start slurm` rather than `snap start slurm.slurm`.

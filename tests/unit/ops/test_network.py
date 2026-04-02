@@ -20,7 +20,8 @@ import ops
 import pytest
 from ops import testing
 
-from charmed_hpc_libs import IngressAddressNotFoundError, get_ingress_address
+from charmed_hpc_libs.errors import IngressAddressNotFoundError
+from charmed_hpc_libs.ops import get_ingress_address
 
 TEST_INTEGRATION_NAME = "test"
 INTEGRATION_ADDRESS = None  # Global variable to check if the correct ingress address was pulled.
