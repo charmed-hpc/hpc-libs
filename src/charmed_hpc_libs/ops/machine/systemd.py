@@ -28,7 +28,7 @@ def is_container() -> bool:
     """Use `systemd` to detect if the machine is a container instance.
 
     Raises:
-        DetectVirtNotFoundError: Raised if `systemd-detect-virt` is not found on machine.
+        UnknownVirtualizationStateError: Raised if `systemd-detect-virt` is not found on machine.
     """
     if shutil.which("systemd-detect-virt") is None:
         raise UnknownVirtualizationStateError(
