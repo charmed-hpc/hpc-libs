@@ -11,7 +11,7 @@ Charmed HPC. The current libraries shipped in charmed-hpc-libs include:
 
 - `errors`: Common exceptions and errors raised in HPC charms.
 - `interfaces`: Libraries for building HPC integration interface implementations.
-- `ops`: Libraries for build HPC charms.
+- `ops`: Libraries for building HPC charms.
 
 ## ✨ Getting Started
 
