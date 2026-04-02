@@ -68,13 +68,15 @@ def test_load_secret(mock_charm) -> None:
 
 def test_update_secret(mock_charm) -> None:
     """Test the `update_secret` function."""
-    secret = testing.Secret(label="test-secret", tracked_content={"key": "supersecret"})
+    secret = testing.Secret(
+        label="test-secret", tracked_content={"key": "supersecret"}, owner="app"
+    )
 
     state = mock_charm.run(
-        mock_charm.on.action("update-secret"), state=testing.State(secrets={secret})
+        mock_charm.on.action("update-secret"), state=testing.State(secrets={secret}, leader=True)
     )
 
     secret = state.get_secret(label="test-secret")
-    assert secret.tracked_content["key"] == "newsupersecret"
+    assert secret.latest_content["key"] == "newsupersecret"
     secret = state.get_secret(label="new-secret")
-    assert secret.tracked_content["key"] == "yowzah"
+    assert secret.latest_content["key"] == "yowzah"
