@@ -38,7 +38,7 @@ def is_container() -> bool:
             )
         )
 
-    result = call("systemd-detect-virt", "--container")
+    result = call("systemd-detect-virt", "--container", check=False)
     return result.returncode == 0
 
 
