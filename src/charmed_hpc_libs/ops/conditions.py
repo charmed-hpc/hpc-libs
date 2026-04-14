@@ -48,12 +48,21 @@ type Condition[T: ops.CharmBase] = Callable[[T], ConditionEvaluation]
 
 
 class StopCharm(Exception):  # noqa N818
-    """Exception raised to set high-priority status message."""
+    """Exception raised to set high-priority status message.
 
-    @property
-    def status(self) -> ops.StatusBase:
-        """Get charm status passed as the first argument to this exception."""
-        return self.args[0]
+    Args:
+        status: The status to set on the unit (and optionally the application).
+        app_status: If ``True``, also set the application status to the unit
+            status when the unit is the leader.
+    """
+
+    def __init__(self, status: ops.StatusBase, *, set_app_status: bool = False) -> None:
+        super().__init__(status)  # only return the `status` message when using `str(e)`
+        self.status = status
+        self.set_app_status = set_app_status
+
+    def __repr__(self) -> str:  # noqa D105
+        return f"StopCharm({self.status!r}, set_app_status={self.set_app_status!r})"
 
 
 def refresh[T: ops.CharmBase](hook: Callable[[T], ops.StatusBase] | None = None) -> Callable:
@@ -74,7 +83,7 @@ def refresh[T: ops.CharmBase](hook: Callable[[T], ops.StatusBase] | None = None)
                 _logger.debug(
                     (
                         "`StopCharm` exception raised while running `%s` event handler `%s.%s` ",
-                        "on unit '%s'. setting status to `%s`",
+                        "on unit '%s'. setting unit status to `%s`",
                     ),
                     event.__class__.__name__,
                     charm.__class__.__name__,
@@ -83,6 +92,15 @@ def refresh[T: ops.CharmBase](hook: Callable[[T], ops.StatusBase] | None = None)
                     e.status,
                 )
                 charm.unit.status = e.status
+                if e.set_app_status:
+                    try:
+                        charm.app.status = e.status  # type: ignore
+                        _logger.debug(
+                            "setting app status to `%s`",
+                            e.status,
+                        )
+                    except RuntimeError:
+                        pass
                 return
 
             if hook is not None:

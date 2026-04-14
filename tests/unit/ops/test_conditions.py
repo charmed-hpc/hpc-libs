@@ -20,6 +20,7 @@ from ops import testing
 
 from charmed_hpc_libs.ops import (
     ConditionEvaluation,
+    StopCharm,
     block_unless,
     integration_exists,
     integration_not_exists,
@@ -134,3 +135,45 @@ def test_refresh(mock_charm) -> None:
     )
 
     assert state.unit_status == ops.BlockedStatus("Waiting for integrations: [`metrics-server`]")
+
+
+class AppStatusCharm(ops.CharmBase):
+    """Mock charm for testing `StopCharm` app status propagation."""
+
+    def __init__(self, framework: ops.Framework) -> None:
+        super().__init__(framework)
+        framework.observe(self.on.install, self._on_install)
+        framework.observe(self.on.start, self._on_start)
+
+    @refresh(hook=None)
+    def _on_install(self, _: ops.InstallEvent) -> None:
+        raise StopCharm(ops.BlockedStatus("blocked for app"), set_app_status=True)
+
+    @refresh(hook=None)
+    def _on_start(self, _: ops.StartEvent) -> None:
+        raise StopCharm(ops.BlockedStatus("blocked for unit only"))
+
+
+@pytest.fixture(scope="function")
+def app_status_charm() -> testing.Context[AppStatusCharm]:
+    return testing.Context(AppStatusCharm, meta={"name": "app-status-charm"})
+
+
+@pytest.mark.parametrize("is_leader", (True, False))
+def test_refresh_app_status(app_status_charm, is_leader) -> None:
+    """Test that `refresh` sets app status with `set_app_status=True` only when unit is leader."""
+    state = app_status_charm.run(
+        app_status_charm.on.install(), state=testing.State(leader=is_leader)
+    )
+    assert state.unit_status == ops.BlockedStatus("blocked for app")
+    if is_leader:
+        assert state.app_status == ops.BlockedStatus("blocked for app")
+    else:
+        assert state.app_status == ops.UnknownStatus()
+
+
+def test_refresh_no_app_status_by_default(app_status_charm) -> None:
+    """Test that `refresh` does not touch app status when `set_app_status` is `False` (default)."""
+    state = app_status_charm.run(app_status_charm.on.start(), state=testing.State(leader=True))
+    assert state.unit_status == ops.BlockedStatus("blocked for unit only")
+    assert state.app_status == ops.UnknownStatus()
