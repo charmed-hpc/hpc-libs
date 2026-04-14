@@ -13,7 +13,7 @@ wheels = [
 
 [[package]]
 name = "charmed-hpc-libs"
-version = "0.1.3"
+version = "0.1.2"
 source = { editable = "." }
 
 [package.optional-dependencies]
