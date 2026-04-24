@@ -64,9 +64,8 @@ dev = [
     # Test deps
     "coverage[toml] ~= 7.6",
     "pyfakefs ~= 5.9",
-    "pytest ~= 8.3",
-    "pytest-mock ~= 3.14",
-    "pytest-order ~= 1.3",
+    "pytest ~= 9.0",
+    "pytest-mock ~= 3.0",
     "ops[testing] ~= 3.0",
 
     # Linting
